@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 three-d = {workspace = true}
 physical-simulator = {path = "../physical-simulator"}
+rapier3d = {workspace = true}

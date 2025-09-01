@@ -734,6 +734,7 @@ name = "execution-data"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "rapier3d",
 ]
 
 [[package]]
@@ -2530,6 +2531,7 @@ name = "visualizer-playground"
 version = "0.1.0"
 dependencies = [
  "physical-simulator",
+ "rapier3d",
  "three-d",
 ]
 
