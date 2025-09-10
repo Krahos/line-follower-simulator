@@ -7,7 +7,7 @@ members = [
 ]
 
 exclude = [
-    "sample-robot-code"
+    "sample-robot-code", "bevy-experiment",
 ]
 
 [workspace.dependencies]
