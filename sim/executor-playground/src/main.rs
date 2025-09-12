@@ -1,7 +1,7 @@
 use wasmtime::component::bindgen;
 
 bindgen!({
-    path: "../sample-robot-code/wit/"
+    path: "../../wit/"
 });
 
 use crate::{
@@ -321,8 +321,7 @@ fn main() -> wasmtime::Result<()> {
     let mut store = wasmtime::Store::new(&engine, BotHost {});
 
     // Load the component from disk
-    let bytes =
-        std::fs::read("sample-robot-code/target/wasm32-wasip1/release/line_follower_robot.wasm")?;
+    let bytes = std::fs::read("../bot/target/wasm32-wasip1/release/line_follower_robot.wasm")?;
     let component = wasmtime::component::Component::new(&engine, bytes)?;
 
     // Configure the linker
