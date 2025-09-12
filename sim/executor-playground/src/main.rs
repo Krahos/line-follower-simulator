@@ -1,10 +1,10 @@
-use wasmtime::component::bindgen;
+#[macro_use]
+extern crate std;
 
-bindgen!({
-    path: "../../wit/"
-});
+pub mod bindings;
 
-use crate::{
+use crate::bindings::{
+    LineFollowerRobot,
     devices::{
         DeviceOperation, DeviceValue, FutureHandle, MotorPower, PollError, PollOperationStatus,
     },
@@ -275,7 +275,7 @@ impl DeviceValueExt for DeviceValue {
 
 pub struct BotHost {}
 
-impl devices::Host for BotHost {
+impl bindings::devices::Host for BotHost {
     #[doc = " Perform a blocking operation (returns the provided value, blocking for the needed time)"]
     fn device_operation_blocking(&mut self, _operation: DeviceOperation) -> DeviceValue {
         DEVICE_VALUE_ZERO.set_u32(0, 0)
@@ -299,7 +299,7 @@ impl devices::Host for BotHost {
     fn set_motors_power(&mut self, _left: MotorPower, _right: MotorPower) -> () {}
 }
 
-impl diagnostics::Host for BotHost {
+impl bindings::diagnostics::Host for BotHost {
     #[doc = " Write a line of text as a log, like writing to a serial line"]
     #[doc = " (each character takes 100 microseconds)"]
     fn write_line(&mut self, _text: wasmtime::component::__internal::String) -> () {}
