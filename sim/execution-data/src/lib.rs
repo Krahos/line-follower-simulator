@@ -56,6 +56,16 @@ pub trait SimulationStepper {
     /// Get the current simulation time in microseconds.
     fn get_time_us(&self) -> u32;
 
+    /// Get the time that the simulation will reach at the next step.
+    fn get_time_at_next_step_us(&self) -> u32 {
+        self.get_time_us() + Self::STEP_US
+    }
+
+    /// Get the time that the simulation will reach after the given number of steps.
+    fn get_time_after_steps_us(&self, steps: usize) -> u32 {
+        self.get_time_us() + (steps as u32 * Self::STEP_US)
+    }
+
     /// Get the simulated steps count.
     fn get_step_count(&self) -> usize;
 
