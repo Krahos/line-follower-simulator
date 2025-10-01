@@ -1,8 +1,6 @@
-use std::ffi::c_char;
-
+use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::math::VectorSpace;
 use bevy::prelude::*;
-use bevy::{diagnostic::FrameTimeDiagnosticsPlugin, input::common_conditions::input_just_pressed};
 use bevy_editor_cam::DefaultEditorCamPlugins;
 use bevy_editor_cam::prelude::{EditorCam, OrbitConstraint};
 use bevy_rapier3d::prelude::*;
@@ -112,6 +110,63 @@ fn set_motors_torque(
     }
 }
 
+fn ray_cast_example(
+    read_rapier_context: ReadRapierContext,
+    query_body: Query<(&Motors, &GlobalTransform)>,
+) {
+    for (_, body_tf) in &query_body {
+        let origin = body_tf.translation();
+        let dir = body_tf.rotation().mul_vec3(Vec3::X);
+        let max_toi = 10.0;
+
+        let rapier_context = read_rapier_context.single().ok().unwrap();
+
+        if let Some((entity, intersection)) = rapier_context.cast_ray_and_get_normal(
+            origin,
+            dir,
+            max_toi,
+            true,
+            QueryFilter::default(),
+        ) {
+            let point: Vec3 = intersection.point.into();
+            let normal: Vec3 = intersection.normal.into();
+            println!(
+                "Ray from {:?} hit {:?} at {} normal {}",
+                origin, entity, point, normal
+            );
+        } else if let Some((entity, toi)) =
+            rapier_context.cast_ray(origin, dir, max_toi, true, QueryFilter::default())
+        {
+            let point = origin + dir * toi;
+            println!(
+                "Ray from {:?} hit {:?} at {} (toi={})",
+                origin, entity, point, toi
+            );
+        } else {
+            println!("Ray from {:?} hit nothing", origin);
+        }
+    }
+}
+
+fn _ray_cast_example_old(
+    query_floor: Query<(&Collider, &GlobalTransform), (Without<Wheel>, Without<Motors>)>,
+    query_body: Query<(&Motors, &GlobalTransform)>,
+) {
+    for (collider, floor_transform) in &query_floor {
+        for (_, body_transform) in &query_body {
+            let intersection = collider.cast_ray_and_get_normal(
+                floor_transform.translation(),
+                floor_transform.rotation(),
+                body_transform.translation(),
+                body_transform.rotation().to_euler(EulerRot::ZXY).into(),
+                10.0,
+                true,
+            );
+            println!("Point: {}", intersection.map_or(Vec3::ZERO, |r| r.point));
+        }
+    }
+}
+
 fn main() {
     App::new()
         .add_plugins((
@@ -140,7 +195,12 @@ fn main() {
         // Spawn text instructions for keybinds.
         .add_systems(
             RunFixedMainLoop,
-            (handle_motors_input, set_wheel_torque, set_motors_torque)
+            (
+                handle_motors_input,
+                set_wheel_torque,
+                set_motors_torque,
+                ray_cast_example,
+            )
                 .chain()
                 .in_set(RunFixedMainLoopSystem::BeforeFixedMainLoop),
         )
@@ -149,25 +209,11 @@ fn main() {
         .run();
 }
 
-fn setup(
-    mut commands: Commands,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut meshes: ResMut<Assets<Mesh>>,
-) {
-    // let wheel_shape: Mesh = Cylinder::default().into();
-    // let wheel_mesh = meshes.add(wheel_shape.rotated_by(Quat::from_rotation_z(FRAC_PI_2)));
-    let wheel_mesh = meshes.add(Cylinder::default());
-    let cube_mesh = meshes.add(Cuboid::default());
-    let floor_material = materials.add(Color::srgb(0.4, 0.4, 0.4));
-    let body_material = materials.add(Color::srgb(0.8, 0.2, 0.2));
-    let wheel_material = materials.add(Color::srgb(0.2, 0.2, 0.2));
-
+fn setup(mut commands: Commands) {
     // Static floor
     let _floor = commands
         .spawn((
-            Mesh3d(cube_mesh.clone()),
             Collider::cuboid(0.5, 0.5, 0.5),
-            MeshMaterial3d(floor_material.clone()),
             RigidBody::Fixed,
             Friction::new(0.5),
             Transform::from_xyz(0.0, 0.0, -4.0).with_scale(Vec3::new(50.0, 50.0, 0.1)),
@@ -178,7 +224,6 @@ fn setup(
     let car_body = commands
         .spawn((
             Collider::cuboid(0.5, 0.5, 0.5),
-            MeshMaterial3d(body_material.clone()),
             RigidBody::Dynamic,
             Friction {
                 coefficient: 0.5,
@@ -201,10 +246,9 @@ fn setup(
     let left_wheel_joint: RevoluteJointBuilder = RevoluteJointBuilder::new(Vec3::Y)
         .local_anchor1(Vec3::new(wheel_joints_x, 0.5, 0.0))
         .local_anchor2(Vec3::new(0.0, -0.5, 0.0));
-    let left_wheel = commands
+    let _left_wheel = commands
         .spawn((
             Collider::cylinder(0.5, 0.5),
-            MeshMaterial3d(wheel_material.clone()),
             Transform::from_xyz(wheel_joints_x, 1.0, 0.0),
             GlobalTransform::default(),
             RigidBody::Dynamic,
@@ -225,10 +269,9 @@ fn setup(
     let right_wheel_joint = RevoluteJointBuilder::new(Vec3::Y)
         .local_anchor1(Vec3::new(wheel_joints_x, -0.5, 0.0))
         .local_anchor2(Vec3::new(0.0, 0.5, 0.0));
-    let right_wheel = commands
+    let _right_wheel = commands
         .spawn((
             Collider::cylinder(0.5, 0.5),
-            MeshMaterial3d(wheel_material.clone()),
             Transform::from_xyz(wheel_joints_x, -1.0, 0.0),
             GlobalTransform::default(),
             RigidBody::Dynamic,
@@ -280,6 +323,13 @@ fn setup(
             },
             ..Default::default()
         },
-        Transform::from_translation(Vec3::Z * 10.0).looking_at(Vec3::ZERO, Vec3::Y),
+        Transform::from_translation(Vec3::Z * 10.0).looking_at(
+            Vec3::Y,
+            Vec3 {
+                x: 0.0,
+                y: 5.0,
+                z: 10.0,
+            },
+        ),
     ));
 }
