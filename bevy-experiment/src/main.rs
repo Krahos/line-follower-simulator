@@ -515,21 +515,11 @@ fn main() {
         //     ray_cast_example.in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
         // )
         // Add systems for toggling the diagnostics UI and pausing and stepping the simulation.
-        .add_systems(Startup, setup)
+        .add_systems(Startup, (setup_robot, setup_track, setup_ui).chain())
         .run();
 }
 
-fn setup(mut commands: Commands, track: Res<Track>) {
-    // Static floor
-    // let _floor = commands
-    //     .spawn((
-    //         Collider::cuboid(0.5, 0.5, 0.5),
-    //         RigidBody::Fixed,
-    //         Friction::new(0.5),
-    //         Transform::from_xyz(0.0, 0.0, -4.0).with_scale(Vec3::new(50.0, 50.0, 0.1)),
-    //     ))
-    //     .id();
-
+fn setup_robot(mut commands: Commands) {
     // Static car body with motors
     let car_body = commands
         .spawn((
@@ -548,6 +538,23 @@ fn setup(mut commands: Commands, track: Res<Track>) {
             },
             ExternalForce::default(),
             Velocity::zero(),
+        ))
+        .id();
+
+    let sensor_joint: FixedJointBuilder = FixedJointBuilder::new()
+        .local_anchor1(Vec3::new(0.0, 0.0, 0.0))
+        .local_anchor2(Vec3::new(1.5, 0.0, 0.0));
+    let _sensor_test = commands
+        .spawn((
+            Collider::cuboid(0.2, 0.2, 0.2),
+            RigidBody::Dynamic,
+            Friction {
+                coefficient: 0.1,
+                combine_rule: CoefficientCombineRule::Min,
+            },
+            Transform::from_xyz(-1.5, 0.0, 0.0),
+            GlobalTransform::default(),
+            ImpulseJoint::new(car_body, sensor_joint),
         ))
         .id();
 
@@ -612,16 +619,32 @@ fn setup(mut commands: Commands, track: Res<Track>) {
     //         .with_aligned_axis(Vector::Y)
     //         .with_local_anchor_1(Vector::Y * -1.0 + Vector::X * -0.5),
     // );
+}
 
-    // Directional light
-    commands.spawn((
-        DirectionalLight {
-            illuminance: 2000.0,
-            shadows_enabled: true,
-            ..default()
-        },
-        Transform::default().looking_at(Vec3::new(-1.0, -1.5, -2.5), Vec3::Z),
-    ));
+fn setup_track(commands: Commands, track: Res<Track>) {
+    track.spawn_bundles(commands);
+
+    // Static floor
+    // let _floor = commands
+    //     .spawn((
+    //         Collider::cuboid(0.5, 0.5, 0.5),
+    //         RigidBody::Fixed,
+    //         Friction::new(0.5),
+    //         Transform::from_xyz(0.0, 0.0, -4.0).with_scale(Vec3::new(50.0, 50.0, 0.1)),
+    //     ))
+    //     .id();
+}
+
+fn setup_ui(mut commands: Commands) {
+    // // Directional light
+    // commands.spawn((
+    //     DirectionalLight {
+    //         illuminance: 2000.0,
+    //         shadows_enabled: true,
+    //         ..default()
+    //     },
+    //     Transform::default().looking_at(Vec3::new(-1.0, -1.5, -2.5), Vec3::Z),
+    // ));
 
     // Camera
     commands.spawn((
@@ -642,7 +665,4 @@ fn setup(mut commands: Commands, track: Res<Track>) {
             },
         ),
     ));
-
-    // Track
-    track.spawn_bundles(commands);
 }
