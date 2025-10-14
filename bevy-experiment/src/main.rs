@@ -400,8 +400,8 @@ fn handle_motors_input(
         0.0
     };
 
-    const FORWARD_TORQUE: f32 = 0.001;
-    const SIDE_TORQUE: f32 = 0.001;
+    const FORWARD_TORQUE: f32 = 0.000001;
+    const SIDE_TORQUE: f32 = 0.000001;
 
     torque.left_torque = forward * FORWARD_TORQUE + side * SIDE_TORQUE;
     torque.right_torque = forward * FORWARD_TORQUE - side * SIDE_TORQUE;
@@ -422,13 +422,13 @@ fn set_motors_torque(
     torque: Res<MotorsTorque>,
     mut query: Query<(&Motors, &Transform, &mut ExternalForce)>,
 ) {
-    for (motors, transform, mut ext_torque) in &mut query {
-        let left_torque = torque.left_torque * WheelSide::Left.sign() * -1.0;
-        let left_axle = transform.rotation * motors.left_axle;
-        let right_torque = torque.right_torque * WheelSide::Right.sign() * -1.0;
-        let right_axle = transform.rotation * motors.right_axle;
-        ext_torque.torque = (left_axle * left_torque) + (right_axle * right_torque);
-    }
+    // for (motors, transform, mut ext_torque) in &mut query {
+    //     let left_torque = torque.left_torque * WheelSide::Left.sign() * -1.0;
+    //     let left_axle = transform.rotation * motors.left_axle;
+    //     let right_torque = torque.right_torque * WheelSide::Right.sign() * -1.0;
+    //     let right_axle = transform.rotation * motors.right_axle;
+    //     ext_torque.torque = (left_axle * left_torque) + (right_axle * right_torque);
+    // }
 }
 
 fn _ray_cast_example(
@@ -471,14 +471,11 @@ fn main() {
             RapierPhysicsPlugin::<NoUserData>::default().with_custom_initialization(
                 RapierContextInitialization::InitializeDefaultRapierContext {
                     rapier_configuration: {
-                        let mut config = RapierConfiguration::new(1f32);
+                        let mut config = RapierConfiguration::new(0.001);
                         config.gravity = Vec3::NEG_Z * 9.81;
                         config
                     },
-                    integration_parameters: IntegrationParameters {
-                        length_unit: 1f32,
-                        ..default()
-                    },
+                    integration_parameters: IntegrationParameters::default(),
                 },
             ),
             DefaultEditorCamPlugins,
@@ -544,7 +541,6 @@ fn main() {
 //     pub front_sensors_height: f32,
 // }
 
-const BOT_WHEEL_WIDTH: f32 = 0.05;
 const BOT_BODY_LENGHT_MIN: f32 = 0.04;
 const BOT_BODY_LENGHT_PERCENT_OF_TOTAL: f32 = 0.6;
 const BOT_BODY_WIDTH: f32 = 0.09;
@@ -612,11 +608,7 @@ fn setup_bot(mut commands: Commands) {
 
     for bumper_world in [front_bumper_world, back_bumper_world] {
         commands.spawn((
-            Collider::compound(vec![(
-                Vec3::ZERO,
-                Quat::from_rotation_z(FRAC_PI_2),
-                Collider::cylinder(BOT_BUMPER_WIDTH / 2.0, BOT_BUMPER_DIAMETER / 2.0),
-            )]),
+            Collider::capsule_x(BOT_BUMPER_WIDTH / 2.0, BOT_BUMPER_DIAMETER / 2.0),
             RigidBody::Dynamic,
             Friction {
                 coefficient: 0.1,
@@ -635,17 +627,13 @@ fn setup_bot(mut commands: Commands) {
     // Wheels
     for side in [WheelSide::Left, WheelSide::Right] {
         let wheel_world = Vec3::new(
-            (width_axle + BOT_WHEEL_WIDTH) / 2.0 * side.sign(),
+            (width_axle + wheel_diameter) / 2.0 * side.sign(),
             0.0,
-            wheel_diameter / 2.0 + BOT_BODY_HEIGHT,
+            wheel_diameter / 2.0,
         );
 
         commands.spawn((
-            Collider::compound(vec![(
-                Vec3::ZERO,
-                Quat::from_rotation_z(FRAC_PI_2),
-                Collider::cylinder(BOT_WHEEL_WIDTH / 2.0, wheel_diameter / 2.0),
-            )]),
+            Collider::ball(wheel_diameter / 2.0),
             Transform::from_xyz(wheel_world.x, wheel_world.y, wheel_world.z),
             RigidBody::Dynamic,
             Friction {
@@ -654,7 +642,7 @@ fn setup_bot(mut commands: Commands) {
             },
             ColliderMassProperties::Density(1.0),
             Wheel {
-                axle: Vec3::X,
+                axle: Vec3::X * side.sign(),
                 side,
             },
             ExternalForce::default(),
@@ -718,14 +706,14 @@ fn setup_bot(mut commands: Commands) {
 
 fn setup_track(mut commands: Commands, track: Res<Track>) {
     // Static floor
-    commands.spawn((
-        Collider::cuboid(10.0, 10.0, 0.1),
-        RigidBody::Fixed,
-        Friction::new(0.5),
-        Transform::from_xyz(0.0, 0.0, -0.1),
-    ));
+    // commands.spawn((
+    //     Collider::cuboid(10.0, 10.0, 0.1),
+    //     RigidBody::Fixed,
+    //     Friction::new(0.5),
+    //     Transform::from_xyz(0.0, 0.0, -0.1),
+    // ));
 
-    // track.spawn_bundles(commands);
+    track.spawn_bundles(commands);
 }
 
 fn setup_ui(mut commands: Commands) {
