@@ -9,10 +9,12 @@ use bevy_editor_cam::prelude::{EditorCam, OrbitConstraint};
 use bevy_rapier3d::prelude::*;
 use bevy_rapier3d::rapier::prelude::IntegrationParameters;
 
+const FLOOR_HEIGHT: f32 = 0.02;
+const FLOOR_SIZE: f32 = 20.0;
 const TRACK_HALF_WIDTH: f32 = 0.1;
 const TRACK_HALF_HEIGHT: f32 = 0.001;
 const TRACK_TIPS_LENGTH: f32 = 0.5;
-const TRACK_Z_OFFSET: f32 = -TRACK_HALF_HEIGHT * 2.0;
+const TRACK_Z_OFFSET: f32 = -TRACK_HALF_HEIGHT - FLOOR_HEIGHT;
 const TRACK_CIRCLE_SEGMENTS_PER_PI: usize = 40;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -706,12 +708,12 @@ fn setup_bot(mut commands: Commands) {
 
 fn setup_track(mut commands: Commands, track: Res<Track>) {
     // Static floor
-    // commands.spawn((
-    //     Collider::cuboid(10.0, 10.0, 0.1),
-    //     RigidBody::Fixed,
-    //     Friction::new(0.5),
-    //     Transform::from_xyz(0.0, 0.0, -0.1),
-    // ));
+    commands.spawn((
+        Collider::cuboid(FLOOR_SIZE / 2.0, FLOOR_SIZE / 2.0, FLOOR_HEIGHT / 2.0),
+        RigidBody::Fixed,
+        Friction::new(0.5),
+        Transform::from_xyz(0.0, 0.0, -FLOOR_HEIGHT / 2.0),
+    ));
 
     track.spawn_bundles(commands);
 }
