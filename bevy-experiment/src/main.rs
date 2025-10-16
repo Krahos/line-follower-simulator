@@ -9,7 +9,7 @@ use bevy_editor_cam::prelude::{EditorCam, OrbitConstraint};
 use bevy_rapier3d::prelude::*;
 use bevy_rapier3d::rapier::prelude::IntegrationParameters;
 
-const FLOOR_HEIGHT: f32 = 0.02;
+const FLOOR_HEIGHT: f32 = 0.03;
 const FLOOR_SIZE: f32 = 20.0;
 const TRACK_HALF_WIDTH: f32 = 0.1;
 const TRACK_HALF_HEIGHT: f32 = 0.001;
@@ -433,37 +433,36 @@ fn set_motors_torque(
     // }
 }
 
-fn _ray_cast_example(
-    read_rapier_context: ReadRapierContext,
-    body_query: Query<(&Motors, &GlobalTransform)>,
-    gt_query: Query<&GlobalTransform>,
-) {
-    for (_, body_tf) in body_query {
-        let origin = body_tf.translation();
-        let dir = body_tf.rotation().mul_vec3(Vec3::X);
-        let max_toi = 10.0;
+#[derive(Component)]
+struct LineSensor {}
 
-        let rapier_context = read_rapier_context.single().unwrap();
+fn compute_sensor_readings(
+    read_rapier_context: ReadRapierContext,
+    sensors_query: Query<(&LineSensor, &GlobalTransform)>,
+    track_segments_query: Query<&TrackSegment>,
+) {
+    let rapier_context = read_rapier_context.single().unwrap();
+    println!("--- Sensor readings ---");
+    for (_, sensor_tf) in sensors_query {
+        let origin = sensor_tf.translation();
+        let dir = Vec3::NEG_Z; // sensor_tf.rotation().mul_vec3(Vec3::NEG_Z);
+        let max_toi = 0.1;
 
         if let Some((entity, intersection)) = rapier_context.cast_ray_and_get_normal(
             origin,
             dir,
             max_toi,
             true,
-            QueryFilter::default(),
+            QueryFilter::default().predicate(&|entity| track_segments_query.get(entity).is_ok()),
         ) {
+            // Sensor is over the track
             let point: Vec3 = intersection.point.into();
-
-            let gt = gt_query.get(entity).unwrap();
-
-            println!(
-                "Ray from {:?} hit {:?} at {} gt {:?}",
-                origin, entity, point, gt
-            );
+            println!("Ray from {:.2} hit {} at {:.2}", origin, entity, point);
         } else {
-            println!("Ray from {:?} hit nothing", origin);
+            println!("Ray from {:.2} hit nothing", origin);
         }
     }
+    println!("-----------------------");
 }
 
 fn main() {
@@ -505,10 +504,10 @@ fn main() {
                 .chain()
                 .in_set(RunFixedMainLoopSystem::BeforeFixedMainLoop),
         )
-        // .add_systems(
-        //     RunFixedMainLoop,
-        //     ray_cast_example.in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
-        // )
+        .add_systems(
+            RunFixedMainLoop,
+            compute_sensor_readings.in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
+        )
         // Add systems for toggling the diagnostics UI and pausing and stepping the simulation.
         .add_systems(Startup, (setup_bot, setup_track, setup_ui).chain())
         .run();
@@ -551,6 +550,8 @@ const BOT_BODY_HEIGHT: f32 = 0.02;
 const BOT_BUMPER_DIAMETER: f32 = BOT_BODY_HEIGHT / 2.0;
 const BOT_BUMPER_WIDTH: f32 = BOT_BODY_WIDTH / 2.0;
 
+const BOT_SENSORS_DIAMETER: f32 = 0.001;
+
 fn setup_bot(mut commands: Commands) {
     // Axle width from wheel to wheel (in mm, 100 to 200)
     let width_axle: f32 = 100.0 / 1000.0;
@@ -567,7 +568,7 @@ fn setup_bot(mut commands: Commands) {
     // Transmission gear ratio denumerator (from 1 to 100)
     let gear_ratio_den: u32 = 1;
     // Spacing of line sensors (in mm, from 1 to 15)
-    let front_sensors_spacing: f32 = 15.0 / 1000.0;
+    let front_sensors_spacing: f32 = 10.0 / 1000.0;
     // Height of line sensors from the ground (in mm, from 1 to wheels radius)
     let front_sensors_height: f32 = 2.0 / 1000.0;
 
@@ -605,7 +606,11 @@ fn setup_bot(mut commands: Commands) {
         .id();
 
     // Cylinder bumpers
-    let front_bumper_world = Vec3::new(0.0, length_front, BOT_BUMPER_DIAMETER / 2.0);
+    let front_bumper_world = Vec3::new(
+        0.0,
+        length_front - (BOT_BUMPER_WIDTH + BOT_SENSORS_DIAMETER) / 2.0,
+        BOT_BUMPER_DIAMETER / 2.0,
+    );
     let back_bumper_world = Vec3::new(0.0, -length_back, BOT_BUMPER_DIAMETER / 2.0 + clearing_back);
 
     for bumper_world in [front_bumper_world, back_bumper_world] {
@@ -652,6 +657,30 @@ fn setup_bot(mut commands: Commands) {
                 body,
                 RevoluteJointBuilder::new(Vec3::X)
                     .local_anchor1(wheel_world - body_world) // parent's local anchor
+                    .local_anchor2(Vec3::ZERO),
+            ),
+        ));
+    }
+
+    // Sensors
+    for i in [
+        -7.5, -6.5, -5.5, -4.5, -3.5, -2.5, -1.5, -0.5, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5,
+    ] {
+        let sensor_world = Vec3::new(
+            i * front_sensors_spacing,
+            length_front,
+            front_sensors_height,
+        );
+
+        commands.spawn((
+            Collider::ball(BOT_SENSORS_DIAMETER / 2.0),
+            Transform::from_xyz(sensor_world.x, sensor_world.y, sensor_world.z),
+            RigidBody::Dynamic,
+            LineSensor {},
+            ImpulseJoint::new(
+                body,
+                FixedJointBuilder::new()
+                    .local_anchor1(sensor_world - body_world) // parent's local anchor
                     .local_anchor2(Vec3::ZERO),
             ),
         ));
