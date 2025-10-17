@@ -1,8 +1,11 @@
 #[allow(warnings)]
 mod bindings;
+mod value_ext;
 
 use bindings::devices::{DeviceOperation, device_operation_blocking, set_motors_power};
+use bindings::diagnostics::write_line;
 use bindings::exports::robot::{Color, Configuration, Guest};
+use value_ext::DeviceValueExt;
 
 struct Component;
 
@@ -25,9 +28,10 @@ impl Guest for Component {
     }
 
     fn run() -> () {
-        loop {
-            set_motors_power(0, 0);
-            device_operation_blocking(DeviceOperation::SleepFor(10000));
+        for i in 1..1000 {
+            let time = device_operation_blocking(DeviceOperation::GetTime);
+            write_line(&format!("log: {} time {}", i, time.get_u32(0)));
+            device_operation_blocking(DeviceOperation::SleepFor(1_000_000));
         }
     }
 }
