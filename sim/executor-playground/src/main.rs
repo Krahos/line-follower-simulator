@@ -11,17 +11,12 @@ fn main() -> wasmtime::Result<()> {
     // Load the component from disk
     let wasm_bytes = std::fs::read("../bot/target/wasm32-wasip1/release/line_follower_robot.wasm")?;
 
-    // Create a mock stepper
-    let stepper = mock_stepper::MockStepper::new();
+    // Get configuration
+    let cfg = bot_executor::get_robot_configuration(&wasm_bytes)?;
+    println!("Robot configuration: {:#?}", &cfg);
 
-    // Create the bot executor
-    let bot_executor =
-        bot_executor::BotExecutor::new(&wasm_bytes, stepper, TOTAL_SIMULATION_TIME_US)?;
-
-    println!(
-        "Robot configuration: {:#?}",
-        bot_executor.robot_configuration()
-    );
+    // Run robot logic
+    bot_executor::run_robot_simulation(&wasm_bytes, cfg, TOTAL_SIMULATION_TIME_US, None, true)?;
 
     Ok(())
 }

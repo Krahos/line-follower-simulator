@@ -1054,4 +1054,14 @@ impl<S: SimulationStepper> BotHost<S> {
             self.step();
         }
     }
+
+    pub fn write_log_file(&self) {
+        if let Some(path) = &self.workdir_path {
+            let log_file_path = path.join("log.txt");
+            let log_file_text = self.log_lines.join("\n");
+            if let Err(err) = std::fs::write(&log_file_path, &log_file_text) {
+                eprintln!("Error writing file {}: {}", log_file_path.display(), err);
+            }
+        }
+    }
 }

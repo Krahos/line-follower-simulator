@@ -18,6 +18,10 @@ impl StoreFuelHandler {
         })
     }
 
+    pub fn fuel_for_time_us(time_us: TimeUs) -> u64 {
+        time_us as u64 * 1000 / FUEL_UNIT_NS
+    }
+
     pub fn apply(&self, store: &mut impl wasmtime::AsContextMut) -> wasmtime::Result<()> {
         if self.next_fuel != self.current_fuel {
             store.as_context_mut().set_fuel(self.current_fuel)?;
@@ -42,7 +46,11 @@ impl StoreFuelHandler {
     }
 
     pub fn advance_time(&mut self, time: TimeUs) {
-        self.next_fuel -= time as u64 / FUEL_UNIT_NS;
+        self.next_fuel = self.next_fuel.saturating_sub(Self::fuel_for_time_us(time));
+        // println!(
+        //     "advance_time: current fuel {}, next fuel {}",
+        //     self.current_fuel, self.next_fuel
+        // );
     }
 }
 

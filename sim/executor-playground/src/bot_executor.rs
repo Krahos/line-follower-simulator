@@ -1,68 +1,97 @@
-use execution_data::SimulationStepper;
-use wasmtime::{Config, Engine, Store};
+use std::path::PathBuf;
+
+use wasmtime::component::HasSelf;
 
 use crate::{
-    bindings::{LineFollowerRobot, devices::TimeUs, exports::robot::Configuration},
+    bindings::{
+        LineFollowerRobot, StoreFuelHandler, devices::TimeUs, exports::robot::Configuration,
+    },
     bot_wasm_host::BotHost,
+    mock_stepper::MockStepper,
 };
 
-pub struct BotExecutor<S: SimulationStepper + 'static> {
-    #[allow(unused)]
-    engine: Engine,
-    #[allow(unused)]
-    store: Store<BotHost<S>>,
-    #[allow(unused)]
-    component: wasmtime::component::Component,
-    #[allow(unused)]
-    linker: wasmtime::component::Linker<BotHost<S>>,
-    #[allow(unused)]
-    robot_component: LineFollowerRobot,
+pub fn get_robot_configuration(wasm_bytes: &[u8]) -> wasmtime::Result<Configuration> {
+    // Time bound for configuration creation
+    let total_simulation_time: TimeUs = 1_000;
 
-    robot_configuration: Configuration,
+    // Create a mock stepper
+    let stepper = MockStepper::new();
+
+    // Create engine and store
+    let mut engine_config = wasmtime::Config::new();
+    engine_config.consume_fuel(true);
+    let engine = wasmtime::Engine::new(&engine_config)?;
+    let mut store = wasmtime::Store::new(
+        &engine,
+        BotHost::new(stepper, total_simulation_time, None, true),
+    );
+
+    // Instantiate component
+    let component = wasmtime::component::Component::new(&engine, wasm_bytes)?;
+
+    // Configure the linker
+    let mut linker = wasmtime::component::Linker::new(&engine);
+
+    // Ignore unknown imports
+    linker.define_unknown_imports_as_traps(&component)?;
+
+    // Instantiate component host
+    let robot_component = LineFollowerRobot::instantiate(&mut store, &component, &linker)?;
+
+    store.set_fuel(StoreFuelHandler::fuel_for_time_us(total_simulation_time))?;
+    let robot_configuration = robot_component.robot().call_setup(&mut store)?;
+    println!("remaining fuel after setup: {}", store.get_fuel()?);
+
+    Ok(robot_configuration)
 }
 
-impl<S: SimulationStepper + Send + 'static> BotExecutor<S> {
-    pub fn new(
-        wasm_bytes: &[u8],
-        stepper: S,
-        total_simulation_time: TimeUs,
-    ) -> wasmtime::Result<Self> {
-        // Create engine and store
-        let mut engine_config = Config::new();
-        engine_config.consume_fuel(true);
-        let engine = Engine::new(&engine_config)?;
-        let mut store = wasmtime::Store::new(
-            &engine,
-            BotHost::new(stepper, total_simulation_time, None, true),
-        );
+pub fn run_robot_simulation(
+    wasm_bytes: &[u8],
+    _configuration: Configuration,
+    total_simulation_time: TimeUs,
+    workdir_path: Option<PathBuf>,
+    output_log: bool,
+) -> wasmtime::Result<()> {
+    // Create a mock stepper (configuration will be used for the real one)
+    let stepper = MockStepper::new();
 
-        // Instantiate component
-        let component = wasmtime::component::Component::new(&engine, wasm_bytes)?;
+    // Create engine and store
+    let mut engine_config = wasmtime::Config::new();
+    engine_config.consume_fuel(true);
+    let engine = wasmtime::Engine::new(&engine_config)?;
+    let mut store = wasmtime::Store::new(
+        &engine,
+        BotHost::new(stepper, total_simulation_time, workdir_path, output_log),
+    );
 
-        // Configure the linker
-        let mut linker = wasmtime::component::Linker::new(&engine);
+    // Instantiate component
+    let component = wasmtime::component::Component::new(&engine, wasm_bytes)?;
 
-        // Ignore unknown imports
-        linker.define_unknown_imports_as_traps(&component)?;
+    // Configure the linker
+    let mut linker = wasmtime::component::Linker::new(&engine);
 
-        // Instantiate component host
-        let robot_component = LineFollowerRobot::instantiate(&mut store, &component, &linker)?;
+    // Ignore unknown imports
+    println!("ignore unknown imports");
+    linker.define_unknown_imports_as_traps(&component)?;
+    linker.allow_shadowing(true);
+    println!("unknown imports ignored");
 
-        store.set_fuel(10000)?;
-        let robot_configuration = robot_component.robot().call_setup(&mut store)?;
-        println!("remaining fuel after setup: {}", store.get_fuel()?);
+    // Bind host functions
+    println!("binding host functions");
+    LineFollowerRobot::add_to_linker::<_, HasSelf<_>>(&mut linker, |host| host)?;
+    println!("binding done");
 
-        Ok(Self {
-            engine,
-            store,
-            component,
-            linker,
-            robot_component,
-            robot_configuration,
-        })
-    }
+    // Instantiate component host
+    println!("instantiating component");
+    let robot_component = LineFollowerRobot::instantiate(&mut store, &component, &linker)?;
 
-    pub fn robot_configuration(&self) -> &Configuration {
-        &self.robot_configuration
-    }
+    store.set_fuel(StoreFuelHandler::fuel_for_time_us(total_simulation_time))?;
+    println!("fuel before run: {}", store.get_fuel()?);
+    robot_component.robot().call_run(&mut store)?;
+    println!("remaining fuel after run: {}", store.get_fuel()?);
+
+    let host = store.data();
+    host.write_log_file();
+
+    Ok(())
 }
