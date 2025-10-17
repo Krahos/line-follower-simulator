@@ -1,8 +1,8 @@
 use execution_data::SimulationStepper;
-use wasmtime::{Engine, Store};
+use wasmtime::{Config, Engine, Store};
 
 use crate::{
-    bindings::{LineFollowerRobot, exports::robot::Configuration},
+    bindings::{LineFollowerRobot, devices::TimeUs, exports::robot::Configuration},
     bot_wasm_host::BotHost,
 };
 
@@ -21,11 +21,20 @@ pub struct BotExecutor<S: SimulationStepper + 'static> {
     robot_configuration: Configuration,
 }
 
-impl<S: SimulationStepper + 'static> BotExecutor<S> {
-    pub fn new(wasm_bytes: &[u8], stepper: S) -> wasmtime::Result<Self> {
+impl<S: SimulationStepper + Send + 'static> BotExecutor<S> {
+    pub fn new(
+        wasm_bytes: &[u8],
+        stepper: S,
+        total_simulation_time: TimeUs,
+    ) -> wasmtime::Result<Self> {
         // Create engine and store
-        let engine = Engine::default();
-        let mut store = wasmtime::Store::new(&engine, BotHost::new(stepper));
+        let mut engine_config = Config::new();
+        engine_config.consume_fuel(true);
+        let engine = Engine::new(&engine_config)?;
+        let mut store = wasmtime::Store::new(
+            &engine,
+            BotHost::new(stepper, total_simulation_time, None, true),
+        );
 
         // Instantiate component
         let component = wasmtime::component::Component::new(&engine, wasm_bytes)?;
@@ -39,7 +48,9 @@ impl<S: SimulationStepper + 'static> BotExecutor<S> {
         // Instantiate component host
         let robot_component = LineFollowerRobot::instantiate(&mut store, &component, &linker)?;
 
+        store.set_fuel(10000)?;
         let robot_configuration = robot_component.robot().call_setup(&mut store)?;
+        println!("remaining fuel after setup: {}", store.get_fuel()?);
 
         Ok(Self {
             engine,

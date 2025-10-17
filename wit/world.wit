@@ -1,7 +1,7 @@
 package component:line-follower-robot;
 
 world line-follower-robot {
-    /// Interface for robot devices (provided by simulation host)
+    // Interface for robot devices (provided by simulation host)
     import devices: interface {
         /// Errors that can happen when polling devices asynchronously
         enum poll-error {
@@ -92,14 +92,14 @@ world line-follower-robot {
         /// Perform a blocking operation (returns the provided value, blocking for the needed time)
         device-operation-blocking: func(operation: device-operation) -> device-value;
 
-        /// Initiate and async operation (immediately returns a handle to the future value)
+        /// Initiate an async operation (immediately returns a handle to the future value)
         device-operation-async: func(operation: device-operation) -> future-handle;
 
         /// Poll the status of an async operation (returns immediately)
         device-poll: func(handle: future-handle) -> result<poll-operation-status, poll-error>;
 
-        /// Wait for an async operation (returns when ready with the result or immediately with an error)
-        device-wait: func(handle: future-handle) -> result<device-value, poll-error>;
+        /// Advance one step in the physical simulation
+        world-step: func();
 
         /// Instructs the simulation to forget the handle to an async operation
         /// (is equivalent to dropping the future in Rust)
@@ -112,7 +112,7 @@ world line-follower-robot {
         set-motors-power: func(left: motor-power, right: motor-power);
     }
 
-    /// Interface for robot diagnostics (provided by simulation host)
+    // Interface for robot diagnostics (provided by simulation host)
     import diagnostics: interface {
         /// a name associated to a value
         record named-value {
@@ -161,7 +161,7 @@ world line-follower-robot {
         write-file: func(name: string, data: list<u8>, csv: option<list<csv-column>>);
     }
 
-    /// Interface for robot logic implementation (implemented by robot)
+    // Interface for robot logic implementation (implemented by robot)
     export robot: interface {
         /// An RGB color
         record color {

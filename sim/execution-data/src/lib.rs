@@ -57,6 +57,11 @@ pub trait SimulationStepper {
     /// Time per step in microseconds.
     const STEP_US: u32;
 
+    /// Get time per step in microseconds.
+    fn get_step_us(&self) -> u32 {
+        Self::STEP_US
+    }
+
     /// Perform a single simulation step.
     fn step(&mut self);
 
@@ -66,6 +71,13 @@ pub trait SimulationStepper {
     /// Get the time that the simulation will reach at the next step.
     fn get_time_at_next_step_us(&self) -> u32 {
         self.get_time_us() + Self::STEP_US
+    }
+
+    /// Perform steps to reach the required time
+    fn step_until_time_us(&mut self, target_time_us: u32) {
+        while self.get_time_at_next_step_us() <= target_time_us {
+            self.step();
+        }
     }
 
     /// Get the time that the simulation will reach after the given number of steps.
@@ -94,4 +106,6 @@ pub trait SimulationStepper {
 
     /// Get the collected execution data.
     fn get_data(&self) -> ExecutionData;
+
+    fn is_active(&self) -> bool;
 }

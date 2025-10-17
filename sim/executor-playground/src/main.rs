@@ -1,10 +1,11 @@
-#[macro_use]
-extern crate std;
+use bindings::devices::TimeUs;
 
 pub mod bindings;
 pub mod bot_executor;
 pub mod bot_wasm_host;
 pub mod mock_stepper;
+
+const TOTAL_SIMULATION_TIME_US: TimeUs = 60_000_000;
 
 fn main() -> wasmtime::Result<()> {
     // Load the component from disk
@@ -14,7 +15,8 @@ fn main() -> wasmtime::Result<()> {
     let stepper = mock_stepper::MockStepper::new();
 
     // Create the bot executor
-    let bot_executor = bot_executor::BotExecutor::new(&wasm_bytes, stepper)?;
+    let bot_executor =
+        bot_executor::BotExecutor::new(&wasm_bytes, stepper, TOTAL_SIMULATION_TIME_US)?;
 
     println!(
         "Robot configuration: {:#?}",
