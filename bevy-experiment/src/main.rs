@@ -1,8 +1,8 @@
 use std::f32::consts::{FRAC_PI_2, PI};
 
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
-use bevy::math::VectorSpace;
 use bevy::prelude::*;
+use bevy::scene::ron::de;
 use bevy::text::cosmic_text::Angle;
 use bevy_editor_cam::DefaultEditorCamPlugins;
 use bevy_editor_cam::prelude::{EditorCam, OrbitConstraint};
@@ -39,6 +39,13 @@ impl Side {
 fn rotate_vec2(v: Vec2, angle: f32) -> Vec2 {
     let (s, c) = angle.sin_cos();
     Vec2::new(v.x * c - v.y * s, v.x * s + v.y * c)
+}
+
+fn point_to_new_origin(point: Vec3, transform: &GlobalTransform) -> Vec2 {
+    rotate_vec2(
+        (point - transform.translation()).truncate(),
+        -transform.rotation().to_euler(EulerRot::ZYX).0,
+    )
 }
 
 /// Generates a curved "track turn" collider (an arc section)
@@ -294,6 +301,20 @@ impl TrackSegment {
                 )),
         }
     }
+
+    pub fn intersection_to_sensor_value(&self, intersection: Option<Vec3>, transform: Vec3) -> f32 {
+        match intersection {
+            Some(point) => {
+                let point = point - transform;
+                // Compute the local X coordinate of the intersection point
+                // relative to the centerline of the track segment
+                let local_x = 0.0; // Placeholder for actual computation
+
+                line_reflection(local_x * 1000.0) // Convert to mm
+            }
+            None => 100.0,
+        }
+    }
 }
 
 #[derive(Resource)]
@@ -424,13 +445,13 @@ fn set_motors_torque(
     torque: Res<MotorsTorque>,
     mut query: Query<(&Motors, &Transform, &mut ExternalForce)>,
 ) {
-    // for (motors, transform, mut ext_torque) in &mut query {
-    //     let left_torque = torque.left_torque * WheelSide::Left.sign() * -1.0;
-    //     let left_axle = transform.rotation * motors.left_axle;
-    //     let right_torque = torque.right_torque * WheelSide::Right.sign() * -1.0;
-    //     let right_axle = transform.rotation * motors.right_axle;
-    //     ext_torque.torque = (left_axle * left_torque) + (right_axle * right_torque);
-    // }
+    for (motors, transform, mut ext_torque) in &mut query {
+        let left_torque = torque.left_torque * WheelSide::Left.sign() * -1.0;
+        let left_axle = transform.rotation * motors.left_axle;
+        let right_torque = torque.right_torque * WheelSide::Right.sign() * -1.0;
+        let right_axle = transform.rotation * motors.right_axle;
+        ext_torque.torque = (left_axle * left_torque) + (right_axle * right_torque);
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -449,7 +470,7 @@ struct LineSensor {}
 fn compute_sensor_readings(
     read_rapier_context: ReadRapierContext,
     sensors_query: Query<&GlobalTransform, With<LineSensor>>,
-    track_segments_query: Query<&TrackSegment>,
+    track_segments_query: Query<(&TrackSegment, &GlobalTransform)>,
 ) {
     let rapier_context = read_rapier_context.single().unwrap();
     println!("--- Sensor readings ---");
@@ -467,7 +488,14 @@ fn compute_sensor_readings(
         ) {
             // Sensor is over the track
             let point: Vec3 = intersection.point.into();
-            println!("Ray from {:.2} hit {} at {:.2}", origin, entity, point);
+            let (track_segment, transform) = track_segments_query.get(entity).unwrap();
+            println!(
+                "Ray from {:.2} hit {} at {:.2}, angle {:.2}°",
+                origin,
+                entity,
+                point_to_new_origin(point, transform),
+                transform.rotation().to_euler(EulerRot::ZYX).0.to_degrees()
+            );
         } else {
             println!("Ray from {:.2} hit nothing", origin);
         }
@@ -506,6 +534,20 @@ fn compute_bot_position(
     };
     println!("bot position: {:?}", bot_position);
 }
+
+// fn time_checker(time: Res<Time>) {
+//     static mut LAST: f32 = 0.0;
+
+//     let now = time.elapsed_secs();
+//     let delta = now - unsafe { LAST };
+
+//     // println!("Time: {:.6} Delta: {:.6}", now, delta);
+//     unsafe {
+//         LAST = now;
+//     }
+
+//     println!("Time diff: {:.10}", time.delta_secs() - delta);
+// }
 
 fn main() {
     App::new()
