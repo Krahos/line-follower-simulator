@@ -417,28 +417,6 @@ impl WheelSide {
     }
 }
 
-#[derive(Resource)]
-struct MotorsTorque {
-    left_torque: f32,
-    right_torque: f32,
-}
-
-impl MotorsTorque {
-    pub fn new() -> Self {
-        Self {
-            left_torque: 0.0,
-            right_torque: 0.0,
-        }
-    }
-
-    pub fn torque(&self, side: WheelSide) -> f32 {
-        match side {
-            WheelSide::Left => self.left_torque,
-            WheelSide::Right => self.right_torque,
-        }
-    }
-}
-
 #[derive(Component)]
 struct Motors {
     left_axle: Vec3,
@@ -451,19 +429,38 @@ struct Wheel {
     side: WheelSide,
 }
 
-fn handle_motors_input(
-    keyboard_input: Res<ButtonInput<KeyCode>>,
-    mut torque: ResMut<MotorsTorque>,
-) {
+#[derive(Resource)]
+struct MotorsPwm {
+    left_pwm: f32,
+    right_pwm: f32,
+}
+
+impl MotorsPwm {
+    pub fn new() -> Self {
+        Self {
+            left_pwm: 0.0,
+            right_pwm: 0.0,
+        }
+    }
+
+    pub fn pwm(&self, side: WheelSide) -> f32 {
+        match side {
+            WheelSide::Left => self.left_pwm,
+            WheelSide::Right => self.right_pwm,
+        }
+    }
+}
+
+fn handle_motors_input(keyboard_input: Res<ButtonInput<KeyCode>>, mut pwm: ResMut<MotorsPwm>) {
     let up = keyboard_input.any_pressed([KeyCode::KeyW, KeyCode::ArrowUp]);
     let down = keyboard_input.any_pressed([KeyCode::KeyS, KeyCode::ArrowDown]);
     let left = keyboard_input.any_pressed([KeyCode::KeyA, KeyCode::ArrowLeft]);
     let right = keyboard_input.any_pressed([KeyCode::KeyD, KeyCode::ArrowRight]);
 
     let forward = if up {
-        -1.0
-    } else if down {
         1.0
+    } else if down {
+        -1.0
     } else {
         0.0
     };
@@ -475,36 +472,105 @@ fn handle_motors_input(
         0.0
     };
 
-    const FORWARD_TORQUE: f32 = 0.000001;
-    const SIDE_TORQUE: f32 = 0.000001;
+    const MAX_PWM: f32 = 1.0;
+    const USE_PWM: f32 = 1.0;
 
-    torque.left_torque = forward * FORWARD_TORQUE + side * SIDE_TORQUE;
-    torque.right_torque = forward * FORWARD_TORQUE - side * SIDE_TORQUE;
+    pwm.left_pwm = (forward * USE_PWM + side * USE_PWM).clamp(-MAX_PWM, MAX_PWM);
+    pwm.right_pwm = (forward * USE_PWM - side * USE_PWM).clamp(-MAX_PWM, MAX_PWM);
 }
 
-fn set_wheel_torque(
-    torque: Res<MotorsTorque>,
-    mut query: Query<(&Wheel, &Transform, &mut ExternalForce)>,
+fn pwm_to_torque(
+    pwm: f32,     // -1.0 .. 1.0
+    ang_vel: f32, // rad/s
+) -> f32 {
+    // Model a simple DC motor: torque is proportional to PWM (drive) and
+    // decreases linearly with angular velocity, reaching zero at the motor
+    // no-load speed. This is a common, simple approximation of a brushed DC
+    // motor's torque-speed curve.
+
+    // Reference-ish values (Core DC Motor 6V 750 RPM by Jsumo or similar):
+    // - no-load speed: ~750 RPM -> 750/60*2*pi = ~78.54 rad/s
+    // - stall torque: small toy motor ~0.15..0.25 N·m; choose conservative 0.18
+    // These are rough; tune to your robot size.
+    const NO_LOAD_RPM: f32 = 750.0;
+    const NO_LOAD_OMEGA: f32 = NO_LOAD_RPM / 60.0 * std::f32::consts::TAU; // rad/s
+    const STALL_TORQUE: f32 = 0.000005; // N·m at PWM = 1.0 and zero speed
+
+    // Saturate PWM
+    let pwm = pwm.clamp(-1.0, 1.0);
+
+    // Motor torque magnitude scales with |pwm|
+    let drive = pwm.abs();
+
+    // Effective no-load speed for this drive (assume linear scaling with drive)
+    let omega_noload = NO_LOAD_OMEGA * drive;
+
+    // If drive is zero, no torque.
+    if drive <= 0.0 {
+        return 0.0;
+    }
+
+    // Torque falls linearly with speed: T = T_stall * (1 - |omega|/omega_noload)
+    // Clamp denominator to avoid div-by-zero when omega_noload == 0 (drive tiny)
+    let torque_ratio = if omega_noload > 1e-6 {
+        (1.0 - ang_vel.abs() / omega_noload).max(0.0)
+    } else {
+        0.0
+    };
+
+    let torque_mag = STALL_TORQUE * drive * torque_ratio;
+
+    // Direction: pwm sign determines torque direction
+    if pwm >= 0.0 { torque_mag } else { -torque_mag }
+}
+
+fn apply_motors_pwm(
+    pwm: Res<MotorsPwm>,
+    mut wheels_query: Query<(&Wheel, &Transform, &Velocity, &mut ExternalForce)>,
+    // mut motors_query: Query<(&Motors, &Transform, &mut ExternalForce)>,
 ) {
-    for (wheel, transform, mut ext_impulse) in &mut query {
-        let torque = torque.torque(wheel.side) * wheel.side.sign();
-        let wheel_axle = transform.rotation * wheel.axle;
-        ext_impulse.torque = wheel_axle * torque;
+    // let mut body_torque: f32 = 0.0;
+
+    for (wheel, transform, velocity, mut ext_impulse) in &mut wheels_query {
+        let ang_vel = -velocity.angvel.dot(transform.rotation * wheel.axle.abs()); // rad/s
+        let pwm_value = pwm.pwm(wheel.side);
+        let torque = pwm_to_torque(pwm_value, ang_vel);
+
+        let wheel_axle = transform.rotation * wheel.axle.abs();
+        ext_impulse.torque = -wheel_axle * torque;
+
+        // body_torque += torque * wheel.side.sign();
+
+        println!(
+            "Wheel {:?} torque {:.10} vel {:.2}",
+            wheel.side, torque, ang_vel
+        );
     }
 }
 
-fn set_motors_torque(
-    torque: Res<MotorsTorque>,
-    mut query: Query<(&Motors, &Transform, &mut ExternalForce)>,
-) {
-    for (motors, transform, mut ext_torque) in &mut query {
-        let left_torque = torque.left_torque * WheelSide::Left.sign() * -1.0;
-        let left_axle = transform.rotation * motors.left_axle;
-        let right_torque = torque.right_torque * WheelSide::Right.sign() * -1.0;
-        let right_axle = transform.rotation * motors.right_axle;
-        ext_torque.torque = (left_axle * left_torque) + (right_axle * right_torque);
-    }
-}
+// fn set_wheel_torque(
+//     torque: Res<MotorsTorque>,
+//     mut query: Query<(&Wheel, &Transform, &mut ExternalForce)>,
+// ) {
+//     for (wheel, transform, mut ext_impulse) in &mut query {
+//         let torque = torque.torque(wheel.side) * wheel.side.sign();
+//         let wheel_axle = transform.rotation * wheel.axle;
+//         ext_impulse.torque = wheel_axle * torque;
+//     }
+// }
+
+// fn set_motors_torque(
+//     torque: Res<MotorsTorque>,
+//     mut query: Query<(&Motors, &Transform, &mut ExternalForce)>,
+// ) {
+//     for (motors, transform, mut ext_torque) in &mut query {
+//         let left_torque = torque.left_torque * WheelSide::Left.sign() * -1.0;
+//         let left_axle = transform.rotation * motors.left_axle;
+//         let right_torque = torque.right_torque * WheelSide::Right.sign() * -1.0;
+//         let right_axle = transform.rotation * motors.right_axle;
+//         ext_torque.torque = (left_axle * left_torque) + (right_axle * right_torque);
+//     }
+// }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum BotPosition {
@@ -620,8 +686,8 @@ fn main() {
         ))
         // Add gravity to the physics simulation.
         .insert_resource(ClearColor(Color::srgb(0.05, 0.05, 0.1)))
-        // Resource for motors torque values.
-        .insert_resource(MotorsTorque::new())
+        // Resource for motors pwm values.
+        .insert_resource(MotorsPwm::new())
         // Define the track layout and spawn it.
         .insert_resource(Track::new(vec![
             TrackSegment::start(),
@@ -635,16 +701,16 @@ fn main() {
         // Spawn text instructions for keybinds.
         .add_systems(
             RunFixedMainLoop,
-            (handle_motors_input, set_wheel_torque, set_motors_torque)
+            (handle_motors_input, apply_motors_pwm)
                 .chain()
                 .in_set(RunFixedMainLoopSystem::BeforeFixedMainLoop),
         )
-        .add_systems(
-            RunFixedMainLoop,
-            (compute_sensor_readings, compute_bot_position)
-                .chain()
-                .in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
-        )
+        // .add_systems(
+        //     RunFixedMainLoop,
+        //     (compute_sensor_readings, compute_bot_position)
+        //         .chain()
+        //         .in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
+        // )
         // Add systems for toggling the diagnostics UI and pausing and stepping the simulation.
         .add_systems(Startup, (setup_bot, setup_track, setup_ui).chain())
         .run();
@@ -772,7 +838,7 @@ fn setup_bot(mut commands: Commands) {
     // Wheels
     for side in [WheelSide::Left, WheelSide::Right] {
         let wheel_world = Vec3::new(
-            (width_axle + wheel_diameter) / 2.0 * side.sign(),
+            (width_axle + wheel_diameter) / 2.0 * -side.sign(),
             0.0,
             wheel_diameter / 2.0,
         );
@@ -787,9 +853,10 @@ fn setup_bot(mut commands: Commands) {
             },
             ColliderMassProperties::Density(1.0),
             Wheel {
-                axle: Vec3::X * side.sign(),
+                axle: Vec3::NEG_X * side.sign(),
                 side,
             },
+            Velocity::zero(),
             ExternalForce::default(),
             ImpulseJoint::new(
                 body,
