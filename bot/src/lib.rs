@@ -30,7 +30,16 @@ impl Guest for Component {
     fn run() -> () {
         for i in 1..1000 {
             let time = device_operation_blocking(DeviceOperation::GetTime);
-            write_line(&format!("log: {} time {}", i, time.get_u32(0)));
+            let gyro = device_operation_blocking(DeviceOperation::ReadGyro);
+            write_line(&format!(
+                "log: {} time {} gyro {} {} {} {}",
+                i,
+                time.get_u32(0),
+                gyro.get_i16(0),
+                gyro.get_i16(1),
+                gyro.get_i16(2),
+                gyro.get_i16(3)
+            ));
             device_operation_blocking(DeviceOperation::SleepFor(1_000_000));
         }
     }
