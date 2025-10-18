@@ -675,7 +675,7 @@ impl<S: SimulationStepper> bindings::devices::Host for BotHost<S> {
                 }
             }
         }
-        let end_time = self.stepper.get_time_us();
+        let end_time = self.stepper.get_time_us().max(start_time);
 
         self.set_current_time(end_time)?;
         let op: FutureOperation = operation.into();
@@ -739,9 +739,9 @@ impl<S: SimulationStepper> bindings::devices::Host for BotHost<S> {
 
     #[doc = " Advance one step in the physical simulation"]
     fn world_step(&mut self, current_fuel: u64) -> wasmtime::Result<()> {
-        self.setup_current_time(current_fuel)?;
+        let current_time = self.setup_current_time(current_fuel)?;
         self.step();
-        let end_time = self.stepper.get_time_us();
+        let end_time = self.stepper.get_time_us().max(current_time);
         self.set_current_time(end_time)?;
         Ok(())
     }
@@ -1042,10 +1042,10 @@ impl<S: SimulationStepper> BotHost<S> {
 
         // remaining_fuel == self.current_fuel - self.skipped_fuel
         // self.skipped_fuel = remaining_fuel - self.current_fuel
-        if remaining_fuel <= self.current_fuel {
+        if remaining_fuel >= self.current_fuel {
             return Err(wasmtime::Error::msg("Not enough fuel to advance time"));
         }
-        self.skipped_fuel = remaining_fuel - self.current_fuel;
+        self.skipped_fuel = self.current_fuel - remaining_fuel;
         self.check_fuel()?;
         Ok(())
     }
