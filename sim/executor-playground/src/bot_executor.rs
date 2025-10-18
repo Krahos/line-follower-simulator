@@ -3,10 +3,8 @@ use std::path::PathBuf;
 use wasmtime::component::HasSelf;
 
 use crate::{
-    bindings::{
-        LineFollowerRobot, StoreFuelHandler, devices::TimeUs, exports::robot::Configuration,
-    },
-    bot_wasm_host::BotHost,
+    bindings::{LineFollowerRobot, devices::TimeUs, exports::robot::Configuration},
+    bot_wasm_host::{BotHost, fuel_for_time_us},
     mock_stepper::MockStepper,
 };
 
@@ -38,7 +36,7 @@ pub fn get_robot_configuration(wasm_bytes: &[u8]) -> wasmtime::Result<Configurat
     // Instantiate component host
     let robot_component = LineFollowerRobot::instantiate(&mut store, &component, &linker)?;
 
-    store.set_fuel(StoreFuelHandler::fuel_for_time_us(total_simulation_time))?;
+    store.set_fuel(fuel_for_time_us(total_simulation_time))?;
     let robot_configuration = robot_component.robot().call_setup(&mut store)?;
     println!("remaining fuel after setup: {}", store.get_fuel()?);
 
@@ -71,21 +69,16 @@ pub fn run_robot_simulation(
     let mut linker = wasmtime::component::Linker::new(&engine);
 
     // Ignore unknown imports
-    println!("ignore unknown imports");
     linker.define_unknown_imports_as_traps(&component)?;
     linker.allow_shadowing(true);
-    println!("unknown imports ignored");
 
     // Bind host functions
-    println!("binding host functions");
     LineFollowerRobot::add_to_linker::<_, HasSelf<_>>(&mut linker, |host| host)?;
-    println!("binding done");
 
     // Instantiate component host
-    println!("instantiating component");
     let robot_component = LineFollowerRobot::instantiate(&mut store, &component, &linker)?;
 
-    store.set_fuel(StoreFuelHandler::fuel_for_time_us(total_simulation_time))?;
+    store.set_fuel(fuel_for_time_us(total_simulation_time))?;
     println!("fuel before run: {}", store.get_fuel()?);
     robot_component.robot().call_run(&mut store)?;
     println!("remaining fuel after run: {}", store.get_fuel()?);

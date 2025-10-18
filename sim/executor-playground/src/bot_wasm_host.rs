@@ -10,7 +10,7 @@ use execution_data::{
 };
 
 use crate::bindings::{
-    self, StoreFuelHandler,
+    self,
     devices::{
         DeviceOperation, DeviceValue, FutureHandle, MotorPower, PollError, PollOperationStatus,
         TimeUs,
@@ -624,9 +624,23 @@ impl DeviceOperationExt for DeviceOperation {
     }
 }
 
+// A CPU clock of 20 MHz means one instruction takes 50ns,
+// and one fuel unit symbolizes one instruction.
+const FUEL_UNIT_NS: u64 = 50;
+
+pub fn fuel_for_time_us(time_us: TimeUs) -> u64 {
+    time_us as u64 * 1000 / FUEL_UNIT_NS
+}
+
+pub fn time_us_for_fuel(fuel: u64) -> TimeUs {
+    ((fuel * FUEL_UNIT_NS) / 1000) as TimeUs
+}
+
 pub struct BotHost<S: SimulationStepper> {
     stepper: S,
     total_simulation_time: TimeUs,
+    current_fuel: u64,
+    skipped_fuel: u64,
 
     workdir_path: Option<PathBuf>,
     output_log: bool,
@@ -642,10 +656,10 @@ impl<S: SimulationStepper> bindings::devices::Host for BotHost<S> {
     #[doc = " Perform a blocking operation (returns the provided value, blocking for the needed time)"]
     fn device_operation_blocking(
         &mut self,
-        fuel_handler: &mut StoreFuelHandler,
+        current_fuel: u64,
         operation: DeviceOperation,
-    ) -> DeviceValue {
-        let start_time = fuel_handler.get_current_time(self.total_simulation_time);
+    ) -> wasmtime::Result<DeviceValue> {
+        let start_time = self.setup_current_time(current_fuel)?;
         match operation.ready_condition(start_time, &self.stepper) {
             FutureReadyCondition::ReadyAt(ready_at) => {
                 self.step_until_time(ready_at);
@@ -663,18 +677,18 @@ impl<S: SimulationStepper> bindings::devices::Host for BotHost<S> {
         }
         let end_time = self.stepper.get_time_us();
 
-        fuel_handler.advance_time(end_time - start_time);
+        self.set_current_time(end_time)?;
         let op: FutureOperation = operation.into();
-        op.compute_value(&self.stepper, start_time).into()
+        Ok(op.compute_value(&self.stepper, start_time).into())
     }
 
     #[doc = " Initiate an async operation (immediately returns a handle to the future value)"]
     fn device_operation_async(
         &mut self,
-        fuel_handler: &mut StoreFuelHandler,
+        current_fuel: u64,
         operation: DeviceOperation,
-    ) -> FutureHandle {
-        let current_time = fuel_handler.get_current_time(self.total_simulation_time);
+    ) -> wasmtime::Result<FutureHandle> {
+        let current_time = self.setup_current_time(current_fuel)?;
         let id = self.next_future_handle_id;
         self.next_future_handle_id += 1;
 
@@ -698,18 +712,18 @@ impl<S: SimulationStepper> bindings::devices::Host for BotHost<S> {
         };
         self.futures_by_id.insert(id, future_value);
 
-        FutureHandle { id, ready_at }
+        Ok(FutureHandle { id, ready_at })
     }
 
     #[doc = " Poll the status of an async operation (returns immediately)"]
     fn device_poll(
         &mut self,
-        fuel_handler: &mut StoreFuelHandler,
+        current_fuel: u64,
         handle: FutureHandle,
-    ) -> Result<PollOperationStatus, PollError> {
-        let current_time = fuel_handler.get_current_time(self.total_simulation_time);
+    ) -> wasmtime::Result<Result<PollOperationStatus, PollError>> {
+        let current_time = self.setup_current_time(current_fuel)?;
         self.step_until_time(current_time);
-        match self.futures_by_id.get_mut(&handle.id) {
+        let r = match self.futures_by_id.get_mut(&handle.id) {
             Some(f) => match f.value {
                 FutureValueStatus::Pending => Ok(PollOperationStatus::Pending),
                 FutureValueStatus::Ready(device_value_raw) => {
@@ -719,15 +733,17 @@ impl<S: SimulationStepper> bindings::devices::Host for BotHost<S> {
                 FutureValueStatus::Consumed => Err(PollError::ConsumedHandle),
             },
             None => Err(PollError::InvalidHandle),
-        }
+        };
+        Ok(r)
     }
 
     #[doc = " Advance one step in the physical simulation"]
-    fn world_step(&mut self, fuel_handler: &mut StoreFuelHandler) {
-        let start_time = fuel_handler.get_current_time(self.total_simulation_time);
+    fn world_step(&mut self, current_fuel: u64) -> wasmtime::Result<()> {
+        self.setup_current_time(current_fuel)?;
         self.step();
         let end_time = self.stepper.get_time_us();
-        fuel_handler.advance_time(end_time - start_time);
+        self.set_current_time(end_time)?;
+        Ok(())
     }
 
     #[doc = " Instructs the simulation to forget the handle to an async operation"]
@@ -744,14 +760,15 @@ impl<S: SimulationStepper> bindings::devices::Host for BotHost<S> {
     #[doc = " Set the power of both motors"]
     fn set_motors_power(
         &mut self,
-        fuel_handler: &mut StoreFuelHandler,
+        current_fuel: u64,
         left: MotorPower,
         right: MotorPower,
-    ) -> () {
-        let current_time = fuel_handler.get_current_time(self.total_simulation_time);
+    ) -> wasmtime::Result<()> {
+        let current_time = self.setup_current_time(current_fuel)?;
         self.step_until_time(current_time);
         self.stepper
             .set_motor_drivers_duty_cycles(MotorDriversDutyCycles { left, right });
+        Ok(())
     }
 }
 
@@ -760,12 +777,12 @@ impl<S: SimulationStepper> bindings::diagnostics::Host for BotHost<S> {
     #[doc = " (each character takes 100 microseconds)"]
     fn write_line(
         &mut self,
-        fuel_handler: &mut StoreFuelHandler,
+        current_fuel: u64,
         text: wasmtime::component::__internal::String,
-    ) -> () {
-        let current_time = fuel_handler.get_current_time(self.total_simulation_time);
+    ) -> wasmtime::Result<()> {
+        let current_time = self.setup_current_time(current_fuel)?;
         let char_count = text.as_bytes().len();
-        fuel_handler.advance_time((char_count * 100) as u32);
+        self.skip_time((char_count * 100) as u32)?;
 
         if self.output_log || self.workdir_path.is_some() {
             let sec = current_time / 1_000_000;
@@ -780,18 +797,21 @@ impl<S: SimulationStepper> bindings::diagnostics::Host for BotHost<S> {
                 self.log_lines.push(line);
             }
         }
+
+        Ok(())
     }
 
     #[doc = " Write a buffer into a file, eventually converting it to CSV"]
     #[doc = " (each byte takes 10 microseconds)"]
     fn write_file(
         &mut self,
-        fuel_handler: &mut StoreFuelHandler,
+        current_fuel: u64,
         name: wasmtime::component::__internal::String,
         data: wasmtime::component::__internal::Vec<u8>,
         csv: Option<wasmtime::component::__internal::Vec<CsvColumn>>,
-    ) -> () {
-        fuel_handler.advance_time((data.len() * 10) as u32);
+    ) -> wasmtime::Result<()> {
+        self.setup_current_time(current_fuel)?;
+        self.skip_time((data.len() * 10) as u32)?;
 
         if let Some(path) = self.workdir_path.as_ref() {
             let bin_name = format!("{}.bin", name);
@@ -809,6 +829,8 @@ impl<S: SimulationStepper> bindings::diagnostics::Host for BotHost<S> {
                 }
             }
         }
+
+        Ok(())
     }
 }
 
@@ -968,6 +990,8 @@ impl<S: SimulationStepper> BotHost<S> {
     ) -> Self {
         Self {
             total_simulation_time,
+            current_fuel: fuel_for_time_us(total_simulation_time),
+            skipped_fuel: 0,
             stepper,
             workdir_path,
             output_log,
@@ -977,6 +1001,53 @@ impl<S: SimulationStepper> BotHost<S> {
             futures_by_ready_time: BTreeSet::new(),
             futures_by_activity: BTreeSet::new(),
         }
+    }
+
+    fn check_fuel(&self) -> wasmtime::Result<()> {
+        if self.current_fuel <= self.skipped_fuel {
+            return Err(wasmtime::Error::msg("Insufficient fuel"));
+        }
+        Ok(())
+    }
+
+    fn setup_current_time(&mut self, current_fuel: u64) -> wasmtime::Result<TimeUs> {
+        self.current_fuel = current_fuel;
+        self.current_time()
+    }
+
+    fn current_time(&self) -> wasmtime::Result<TimeUs> {
+        self.check_fuel()?;
+        let remaining_fuel = self.current_fuel - self.skipped_fuel;
+        Ok(self.total_simulation_time - time_us_for_fuel(remaining_fuel))
+    }
+
+    fn skip_fuel(&mut self, fuel: u64) -> wasmtime::Result<()> {
+        self.skipped_fuel += fuel;
+        self.check_fuel()?;
+        Ok(())
+    }
+
+    fn skip_time(&mut self, time: TimeUs) -> wasmtime::Result<()> {
+        self.skip_fuel(fuel_for_time_us(time))
+    }
+
+    fn set_current_time(&mut self, time: TimeUs) -> wasmtime::Result<()> {
+        if time >= self.total_simulation_time {
+            return Err(wasmtime::Error::msg(
+                "Cannot advance time beyond total simulation time",
+            ));
+        }
+        let remaining_time = self.total_simulation_time - time;
+        let remaining_fuel = fuel_for_time_us(remaining_time);
+
+        // remaining_fuel == self.current_fuel - self.skipped_fuel
+        // self.skipped_fuel = remaining_fuel - self.current_fuel
+        if remaining_fuel <= self.current_fuel {
+            return Err(wasmtime::Error::msg("Not enough fuel to advance time"));
+        }
+        self.skipped_fuel = remaining_fuel - self.current_fuel;
+        self.check_fuel()?;
+        Ok(())
     }
 
     pub fn step(&mut self) {

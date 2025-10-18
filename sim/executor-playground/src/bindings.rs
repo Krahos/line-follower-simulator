@@ -1,59 +1,3 @@
-use devices::TimeUs;
-
-pub struct StoreFuelHandler {
-    pub current_fuel: u64,
-    pub next_fuel: u64,
-}
-
-// A CPU clock of 20 MHz means one instruction takes 50ns,
-// and one fuel unit symbolizes one instruction.
-const FUEL_UNIT_NS: u64 = 50;
-
-impl StoreFuelHandler {
-    pub fn new(store: &impl wasmtime::AsContext) -> wasmtime::Result<Self> {
-        let fuel = store.as_context().get_fuel()?;
-        Ok(Self {
-            current_fuel: fuel,
-            next_fuel: fuel,
-        })
-    }
-
-    pub fn fuel_for_time_us(time_us: TimeUs) -> u64 {
-        time_us as u64 * 1000 / FUEL_UNIT_NS
-    }
-
-    pub fn apply(&self, store: &mut impl wasmtime::AsContextMut) -> wasmtime::Result<()> {
-        if self.next_fuel != self.current_fuel {
-            store.as_context_mut().set_fuel(self.current_fuel)?;
-        }
-        Ok(())
-    }
-
-    pub fn get_fuel(&self) -> u64 {
-        self.next_fuel
-    }
-
-    pub fn set_fuel(&mut self, fuel: u64) {
-        self.next_fuel = fuel;
-    }
-
-    pub fn get_remaining_time(&self) -> TimeUs {
-        ((self.next_fuel * FUEL_UNIT_NS) / 1000) as TimeUs
-    }
-
-    pub fn get_current_time(&self, total_time: TimeUs) -> TimeUs {
-        total_time - self.get_remaining_time()
-    }
-
-    pub fn advance_time(&mut self, time: TimeUs) {
-        self.next_fuel = self.next_fuel.saturating_sub(Self::fuel_for_time_us(time));
-        // println!(
-        //     "advance_time: current fuel {}, next fuel {}",
-        //     self.current_fuel, self.next_fuel
-        // );
-    }
-}
-
 /// Auto-generated bindings for a pre-instantiated version of a
 /// component which implements the world `line-follower-robot`.
 ///
@@ -251,7 +195,6 @@ pub mod devices {
     use wasmtime::component::__internal::{Box, anyhow};
     use wasmtime::component::{ComponentType, Lift, Lower};
 
-    use crate::bindings::StoreFuelHandler;
     /// Errors that can happen when polling devices asynchronously
     #[derive(Debug, ComponentType, Lower, Lift, Clone, Copy, PartialEq, Eq)]
     #[component(enum)]
@@ -560,62 +503,62 @@ pub mod devices {
         /// Perform a blocking operation (returns the provided value, blocking for the needed time)
         fn device_operation_blocking(
             &mut self,
-            fuel_handler: &mut StoreFuelHandler,
+            current_fuel: u64,
             operation: DeviceOperation,
-        ) -> DeviceValue;
+        ) -> wasmtime::Result<DeviceValue>;
         /// Initiate and async operation (immediately returns a handle to the future value)
         fn device_operation_async(
             &mut self,
-            fuel_handler: &mut StoreFuelHandler,
+            current_fuel: u64,
             operation: DeviceOperation,
-        ) -> FutureHandle;
+        ) -> wasmtime::Result<FutureHandle>;
         /// Poll the status of an async operation (returns immediately)
         fn device_poll(
             &mut self,
-            fuel_handler: &mut StoreFuelHandler,
+            current_fuel: u64,
             handle: FutureHandle,
-        ) -> Result<PollOperationStatus, PollError>;
+        ) -> wasmtime::Result<Result<PollOperationStatus, PollError>>;
         /// Advance one step in the physical simulation
-        fn world_step(&mut self, fuel_handler: &mut StoreFuelHandler);
+        fn world_step(&mut self, current_fuel: u64) -> wasmtime::Result<()>;
         /// Instructs the simulation to forget the handle to an async operation
         /// (is equivalent to dropping the future in Rust)
         fn forget_handle(&mut self, handle: FutureHandle) -> ();
         /// Set the power of both motors
         fn set_motors_power(
             &mut self,
-            fuel_handler: &mut StoreFuelHandler,
+            current_fuel: u64,
             left: MotorPower,
             right: MotorPower,
-        ) -> ();
+        ) -> wasmtime::Result<()>;
     }
     impl<_T: Host + ?Sized> Host for &mut _T {
         /// Perform a blocking operation (returns the provided value, blocking for the needed time)
         fn device_operation_blocking(
             &mut self,
-            fuel_handler: &mut StoreFuelHandler,
+            current_fuel: u64,
             operation: DeviceOperation,
-        ) -> DeviceValue {
-            Host::device_operation_blocking(*self, fuel_handler, operation)
+        ) -> wasmtime::Result<DeviceValue> {
+            Host::device_operation_blocking(*self, current_fuel, operation)
         }
         /// Initiate and async operation (immediately returns a handle to the future value)
         fn device_operation_async(
             &mut self,
-            fuel_handler: &mut StoreFuelHandler,
+            current_fuel: u64,
             operation: DeviceOperation,
-        ) -> FutureHandle {
-            Host::device_operation_async(*self, fuel_handler, operation)
+        ) -> wasmtime::Result<FutureHandle> {
+            Host::device_operation_async(*self, current_fuel, operation)
         }
         /// Poll the status of an async operation (returns immediately)
         fn device_poll(
             &mut self,
-            fuel_handler: &mut StoreFuelHandler,
+            current_fuel: u64,
             handle: FutureHandle,
-        ) -> Result<PollOperationStatus, PollError> {
-            Host::device_poll(*self, fuel_handler, handle)
+        ) -> wasmtime::Result<Result<PollOperationStatus, PollError>> {
+            Host::device_poll(*self, current_fuel, handle)
         }
         /// Advance one step in the physical simulation
-        fn world_step(&mut self, fuel_handler: &mut StoreFuelHandler) {
-            Host::world_step(*self, fuel_handler)
+        fn world_step(&mut self, current_fuel: u64) -> wasmtime::Result<()> {
+            Host::world_step(*self, current_fuel)
         }
         /// Instructs the simulation to forget the handle to an async operation
         /// (is equivalent to dropping the future in Rust)
@@ -625,11 +568,11 @@ pub mod devices {
         /// Set the power of both motors
         fn set_motors_power(
             &mut self,
-            fuel_handler: &mut StoreFuelHandler,
+            current_fuel: u64,
             left: MotorPower,
             right: MotorPower,
-        ) -> () {
-            Host::set_motors_power(*self, fuel_handler, left, right)
+        ) -> wasmtime::Result<()> {
+            Host::set_motors_power(*self, current_fuel, left, right)
         }
     }
     pub fn add_to_linker<T, D>(
@@ -645,44 +588,36 @@ pub mod devices {
         inst.func_wrap(
             "device-operation-blocking",
             move |mut caller: wasmtime::StoreContextMut<'_, T>, (arg0,): (DeviceOperation,)| {
-                let mut fuel_handler = StoreFuelHandler::new(&caller)?;
-                let mut host = host_getter(caller.data_mut());
-                let r = Host::device_operation_blocking(&mut host, &mut fuel_handler, arg0);
-                drop(host);
-                fuel_handler.apply(&mut caller)?;
+                let current_fuel = caller.get_fuel()?;
+                let host = &mut host_getter(caller.data_mut());
+                let r = Host::device_operation_blocking(host, current_fuel, arg0)?;
                 Ok((r,))
             },
         )?;
         inst.func_wrap(
             "device-operation-async",
             move |mut caller: wasmtime::StoreContextMut<'_, T>, (arg0,): (DeviceOperation,)| {
-                let mut fuel_handler = StoreFuelHandler::new(&caller)?;
-                let mut host = host_getter(caller.data_mut());
-                let r = Host::device_operation_async(&mut host, &mut fuel_handler, arg0);
-                drop(host);
-                fuel_handler.apply(&mut caller)?;
+                let current_fuel = caller.get_fuel()?;
+                let host = &mut host_getter(caller.data_mut());
+                let r = Host::device_operation_async(host, current_fuel, arg0)?;
                 Ok((r,))
             },
         )?;
         inst.func_wrap(
             "device-poll",
             move |mut caller: wasmtime::StoreContextMut<'_, T>, (arg0,): (FutureHandle,)| {
-                let mut fuel_handler = StoreFuelHandler::new(&caller)?;
-                let mut host = host_getter(caller.data_mut());
-                let r = Host::device_poll(&mut host, &mut fuel_handler, arg0);
-                drop(host);
-                fuel_handler.apply(&mut caller)?;
+                let current_fuel = caller.get_fuel()?;
+                let host = &mut host_getter(caller.data_mut());
+                let r = Host::device_poll(host, current_fuel, arg0)?;
                 Ok((r,))
             },
         )?;
         inst.func_wrap(
             "world-step",
             move |mut caller: wasmtime::StoreContextMut<'_, T>, (): ()| {
-                let mut fuel_handler = StoreFuelHandler::new(&caller)?;
-                let mut host = host_getter(caller.data_mut());
-                let r = Host::world_step(&mut host, &mut fuel_handler);
-                drop(host);
-                fuel_handler.apply(&mut caller)?;
+                let current_fuel = caller.get_fuel()?;
+                let host = &mut host_getter(caller.data_mut());
+                let r = Host::world_step(host, current_fuel)?;
                 Ok((r,))
             },
         )?;
@@ -698,11 +633,9 @@ pub mod devices {
             "set-motors-power",
             move |mut caller: wasmtime::StoreContextMut<'_, T>,
                   (arg0, arg1): (MotorPower, MotorPower)| {
-                let mut fuel_handler = StoreFuelHandler::new(&caller)?;
-                let mut host = host_getter(caller.data_mut());
-                let r = Host::set_motors_power(&mut host, &mut fuel_handler, arg0, arg1);
-                drop(host);
-                fuel_handler.apply(&mut caller)?;
+                let current_fuel = caller.get_fuel()?;
+                let host = &mut host_getter(caller.data_mut());
+                let r = Host::set_motors_power(host, current_fuel, arg0, arg1)?;
                 Ok(r)
             },
         )?;
@@ -715,7 +648,6 @@ pub mod diagnostics {
     use wasmtime::component::__internal::{Box, anyhow};
     use wasmtime::component::{ComponentType, Lift, Lower};
 
-    use super::StoreFuelHandler;
     /// a name associated to a value
     #[derive(Debug, ComponentType, Lower, Lift, Clone)]
     #[component(record)]
@@ -857,40 +789,40 @@ pub mod diagnostics {
         /// (each character takes 100 microseconds)
         fn write_line(
             &mut self,
-            fuel_handler: &mut StoreFuelHandler,
+            current_fuel: u64,
 
             text: wasmtime::component::__internal::String,
-        ) -> ();
+        ) -> wasmtime::Result<()>;
         /// Write a buffer into a file, eventually converting it to CSV
         /// (each byte takes 10 microseconds)
         fn write_file(
             &mut self,
-            fuel_handler: &mut StoreFuelHandler,
+            current_fuel: u64,
             name: wasmtime::component::__internal::String,
             data: wasmtime::component::__internal::Vec<u8>,
             csv: Option<wasmtime::component::__internal::Vec<CsvColumn>>,
-        ) -> ();
+        ) -> wasmtime::Result<()>;
     }
     impl<_T: Host + ?Sized> Host for &mut _T {
         /// Write a line of text as a log, like writing to a serial line
         /// (each character takes 100 microseconds)
         fn write_line(
             &mut self,
-            fuel_handler: &mut StoreFuelHandler,
+            current_fuel: u64,
             text: wasmtime::component::__internal::String,
-        ) -> () {
-            Host::write_line(*self, fuel_handler, text)
+        ) -> wasmtime::Result<()> {
+            Host::write_line(*self, current_fuel, text)
         }
         /// Write a buffer into a file, eventually converting it to CSV
         /// (each byte takes 10 microseconds)
         fn write_file(
             &mut self,
-            fuel_handler: &mut StoreFuelHandler,
+            current_fuel: u64,
             name: wasmtime::component::__internal::String,
             data: wasmtime::component::__internal::Vec<u8>,
             csv: Option<wasmtime::component::__internal::Vec<CsvColumn>>,
-        ) -> () {
-            Host::write_file(*self, fuel_handler, name, data, csv)
+        ) -> wasmtime::Result<()> {
+            Host::write_file(*self, current_fuel, name, data, csv)
         }
     }
     pub fn add_to_linker<T, D>(
@@ -907,11 +839,9 @@ pub mod diagnostics {
             "write-line",
             move |mut caller: wasmtime::StoreContextMut<'_, T>,
                   (arg0,): (wasmtime::component::__internal::String,)| {
-                let mut fuel_handler = StoreFuelHandler::new(&caller)?;
-                let mut host = host_getter(caller.data_mut());
-                let r = Host::write_line(&mut host, &mut fuel_handler, arg0);
-                drop(host);
-                fuel_handler.apply(&mut caller)?;
+                let current_fuel = caller.get_fuel()?;
+                let host = &mut host_getter(caller.data_mut());
+                let r = Host::write_line(host, current_fuel, arg0)?;
                 Ok(r)
             },
         )?;
@@ -923,11 +853,9 @@ pub mod diagnostics {
                 wasmtime::component::__internal::Vec<u8>,
                 Option<wasmtime::component::__internal::Vec<CsvColumn>>,
             )| {
-                let mut fuel_handler = StoreFuelHandler::new(&caller)?;
-                let mut host = host_getter(caller.data_mut());
-                let r = Host::write_file(&mut host, &mut fuel_handler, arg0, arg1, arg2);
-                drop(host);
-                fuel_handler.apply(&mut caller)?;
+                let current_fuel = caller.get_fuel()?;
+                let host = &mut host_getter(caller.data_mut());
+                let r = Host::write_file(host, current_fuel, arg0, arg1, arg2)?;
                 Ok(r)
             },
         )?;
