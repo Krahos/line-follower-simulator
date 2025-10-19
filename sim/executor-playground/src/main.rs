@@ -1,9 +1,9 @@
-use bindings::devices::TimeUs;
+use wasm_bindings::devices::TimeUs;
 
-pub mod bindings;
 pub mod bot_executor;
 pub mod bot_wasm_host;
 pub mod mock_stepper;
+pub mod wasm_bindings;
 
 const TOTAL_SIMULATION_TIME_US: TimeUs = 60_000_000;
 

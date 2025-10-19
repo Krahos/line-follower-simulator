@@ -9,7 +9,7 @@ use execution_data::{
     AccelData, GyroData, ImuFusedData, MotorAngles, MotorDriversDutyCycles, SimulationStepper,
 };
 
-use crate::bindings::{
+use crate::wasm_bindings::{
     self,
     devices::{
         DeviceOperation, DeviceValue, FutureHandle, MotorPower, PollOperationStatus, TimeUs,
@@ -741,7 +741,7 @@ pub struct BotHost<S: SimulationStepper> {
     futures_by_activity: BTreeSet<u32>,
 }
 
-impl<S: SimulationStepper> bindings::devices::Host for BotHost<S> {
+impl<S: SimulationStepper> wasm_bindings::devices::Host for BotHost<S> {
     #[doc = " Perform a blocking operation (returns the provided value, blocking for the needed time)"]
     fn device_operation_blocking(
         &mut self,
@@ -878,7 +878,7 @@ impl<S: SimulationStepper> bindings::devices::Host for BotHost<S> {
     }
 }
 
-impl<S: SimulationStepper> bindings::diagnostics::Host for BotHost<S> {
+impl<S: SimulationStepper> wasm_bindings::diagnostics::Host for BotHost<S> {
     #[doc = " Write a line of text as a log, like writing to a serial line"]
     #[doc = " (each character takes 100 microseconds)"]
     fn write_line(
@@ -1020,13 +1020,13 @@ impl CvsLineHandler {
             let handler = CsvColumnHandler {
                 start: size,
                 kind: match &column.kind {
-                    bindings::diagnostics::ValueKind::Int8 => CsvColumnKind::Int8,
-                    bindings::diagnostics::ValueKind::Int16 => CsvColumnKind::Int16,
-                    bindings::diagnostics::ValueKind::Int32 => CsvColumnKind::Int32,
-                    bindings::diagnostics::ValueKind::Uint8 => CsvColumnKind::Uint8,
-                    bindings::diagnostics::ValueKind::Uint16 => CsvColumnKind::Uint16,
-                    bindings::diagnostics::ValueKind::Uint32 => CsvColumnKind::Uint32,
-                    bindings::diagnostics::ValueKind::Named(named_values) => {
+                    wasm_bindings::diagnostics::ValueKind::Int8 => CsvColumnKind::Int8,
+                    wasm_bindings::diagnostics::ValueKind::Int16 => CsvColumnKind::Int16,
+                    wasm_bindings::diagnostics::ValueKind::Int32 => CsvColumnKind::Int32,
+                    wasm_bindings::diagnostics::ValueKind::Uint8 => CsvColumnKind::Uint8,
+                    wasm_bindings::diagnostics::ValueKind::Uint16 => CsvColumnKind::Uint16,
+                    wasm_bindings::diagnostics::ValueKind::Uint32 => CsvColumnKind::Uint32,
+                    wasm_bindings::diagnostics::ValueKind::Named(named_values) => {
                         CsvColumnKind::NamedUint8(named_values.iter().fold(
                             BTreeMap::new(),
                             |mut names, named_value| {
@@ -1035,8 +1035,8 @@ impl CvsLineHandler {
                             },
                         ))
                     }
-                    bindings::diagnostics::ValueKind::Pad8 => CsvColumnKind::IgnoreU8,
-                    bindings::diagnostics::ValueKind::Pad16 => CsvColumnKind::IgnoreU16,
+                    wasm_bindings::diagnostics::ValueKind::Pad8 => CsvColumnKind::IgnoreU8,
+                    wasm_bindings::diagnostics::ValueKind::Pad16 => CsvColumnKind::IgnoreU16,
                 },
                 name: column.name.clone(),
             };
