@@ -1,7 +1,9 @@
 use std::f32::consts::{FRAC_PI_2, PI};
 
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
+use bevy::input::InputPlugin;
 use bevy::prelude::*;
+use bevy::scene::ScenePlugin;
 use bevy::text::cosmic_text::Angle;
 use bevy_editor_cam::DefaultEditorCamPlugins;
 use bevy_editor_cam::prelude::{EditorCam, OrbitConstraint};
@@ -675,8 +677,18 @@ fn compute_bot_position(
     println!("bot position: {:?}", bot_position);
 }
 
-fn time_checker(time: Res<Time<Fixed>>) {
-    println!("Fixed dt: {}", time.delta_secs());
+fn time_checker(fixed_time: Res<Time<Fixed>>) {
+    println!("Fixed dt: {}", fixed_time.delta_secs(),);
+}
+
+fn test_runner(mut app: App) -> AppExit {
+    loop {
+        println!("In main loop");
+        app.update();
+        if let Some(exit) = app.should_exit() {
+            return exit;
+        }
+    }
 }
 
 fn main() {
@@ -699,7 +711,7 @@ fn main() {
         ))
         // Set fixed timestep
         .insert_resource(Time::<Fixed>::from_hz(10000.0))
-        // Add gravity to the physics simulation.
+        // Background color
         .insert_resource(ClearColor(Color::srgb(0.05, 0.05, 0.1)))
         // Resource for motors pwm values.
         .insert_resource(MotorsPwm::new())
@@ -728,6 +740,62 @@ fn main() {
         )
         // Add systems for toggling the diagnostics UI and pausing and stepping the simulation.
         .add_systems(Startup, (setup_bot, setup_track, setup_ui).chain())
+        .run();
+}
+
+fn main_headless() {
+    App::new()
+        .add_plugins((
+            // DefaultPlugins,
+            MinimalPlugins,
+            AssetPlugin::default(),
+            ScenePlugin::default(),
+            InputPlugin::default(),
+            RapierPhysicsPlugin::<NoUserData>::default().with_custom_initialization(
+                RapierContextInitialization::InitializeDefaultRapierContext {
+                    rapier_configuration: {
+                        let mut config = RapierConfiguration::new(0.001);
+                        config.gravity = Vec3::NEG_Z * 9.81;
+                        config
+                    },
+                    integration_parameters: IntegrationParameters::default(),
+                },
+            ),
+            // DefaultEditorCamPlugins,
+            // RapierDebugRenderPlugin::default(),
+            // FrameTimeDiagnosticsPlugin::default(),
+        ))
+        .init_asset::<Mesh>()
+        // Set fixed timestep
+        .insert_resource(Time::<Fixed>::from_hz(10000.0))
+        // Resource for motors pwm values.
+        .insert_resource(MotorsPwm::new())
+        // Define the track layout and spawn it.
+        .insert_resource(Track::new(vec![
+            TrackSegment::start(),
+            TrackSegment::straight(2.0),
+            TrackSegment::ninety_deg_turn(0.5, Side::Right),
+            TrackSegment::cyrcle_turn(1.0, Angle::from_degrees(120.0), Side::Left),
+            TrackSegment::ninety_deg_turn(1.0, Side::Left),
+            TrackSegment::cyrcle_turn(2.0, Angle::from_degrees(60.0), Side::Right),
+            TrackSegment::end(),
+        ]))
+        // Spawn text instructions for keybinds.
+        .add_systems(
+            RunFixedMainLoop,
+            (handle_motors_input, apply_motors_pwm)
+                .chain()
+                .in_set(RunFixedMainLoopSystem::BeforeFixedMainLoop),
+        )
+        .add_systems(
+            RunFixedMainLoop,
+            (compute_sensor_readings, compute_bot_position, time_checker)
+                .chain()
+                .in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
+        )
+        // Add systems for toggling the diagnostics UI and pausing and stepping the simulation.
+        .add_systems(Startup, (setup_bot, setup_track, setup_ui).chain())
+        .set_runner(test_runner)
         .run();
 }
 
