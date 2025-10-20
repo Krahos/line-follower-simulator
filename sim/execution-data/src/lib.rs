@@ -57,6 +57,7 @@ pub struct SensorsData {
     pub accel: AccelData,
     pub gyro: GyroData,
     pub imu_fused: ImuFusedData,
+    pub line_sensors: [f32; 16],
 }
 
 pub trait SimulationStepper {

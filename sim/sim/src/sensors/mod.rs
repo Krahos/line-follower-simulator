@@ -3,6 +3,7 @@ use bevy_rapier3d::prelude::*;
 
 use crate::track::{TRACK_HALF_WIDTH, TrackSegment};
 use crate::utils::point_to_new_origin;
+use execution_data::SensorsData;
 
 fn line_reflection(x: f32) -> f32 {
     const LINE_SIZE: f32 = 0.02; // 20 mm
@@ -40,43 +41,29 @@ fn line_reflection(x: f32) -> f32 {
 }
 
 trait TrackSimulateLine {
-    fn intersection_to_sensor_value(
-        &self,
-        intersection: Option<Vec3>,
-        transform: &GlobalTransform,
-    ) -> f32;
+    fn intersection_to_sensor_value(&self, point: Vec3, transform: &GlobalTransform) -> f32;
 }
 
 impl TrackSimulateLine for TrackSegment {
-    fn intersection_to_sensor_value(
-        &self,
-        intersection: Option<Vec3>,
-        transform: &GlobalTransform,
-    ) -> f32 {
-        match intersection {
-            Some(point) => {
-                let local_point = point_to_new_origin(point, transform);
+    fn intersection_to_sensor_value(&self, point: Vec3, transform: &GlobalTransform) -> f32 {
+        let local_point = point_to_new_origin(point, transform);
 
-                match *self {
-                    TrackSegment::Start | TrackSegment::End => line_reflection(local_point.x),
-                    TrackSegment::Straight(_) => line_reflection(local_point.x),
-                    TrackSegment::NinetyDegTurn(data) => {
-                        let turn_y = (data.line_half_length - TRACK_HALF_WIDTH) / 2.0;
-                        let dist_to_line =
-                            if local_point.y < data.side.sign() * local_point.x + turn_y {
-                                local_point.x
-                            } else {
-                                data.side.sign() * (local_point.y - turn_y)
-                            };
-                        line_reflection(dist_to_line)
-                    }
-                    TrackSegment::CyrcleTurn(data) => {
-                        let dist_to_line = (local_point.length() - data.radius) * data.side.sign();
-                        line_reflection(dist_to_line)
-                    }
-                }
+        match *self {
+            TrackSegment::Start | TrackSegment::End => line_reflection(local_point.x),
+            TrackSegment::Straight(_) => line_reflection(local_point.x),
+            TrackSegment::NinetyDegTurn(data) => {
+                let turn_y = (data.line_half_length - TRACK_HALF_WIDTH) / 2.0;
+                let dist_to_line = if local_point.y < data.side.sign() * local_point.x + turn_y {
+                    local_point.x
+                } else {
+                    data.side.sign() * (local_point.y - turn_y)
+                };
+                line_reflection(dist_to_line)
             }
-            None => 100.0,
+            TrackSegment::CyrcleTurn(data) => {
+                let dist_to_line = (local_point.length() - data.radius) * data.side.sign();
+                line_reflection(dist_to_line)
+            }
         }
     }
 }
@@ -98,12 +85,13 @@ fn compute_sensor_readings(
     read_rapier_context: ReadRapierContext,
     sensors_query: Query<&GlobalTransform, With<LineSensor>>,
     track_segments_query: Query<(&TrackSegment, &GlobalTransform)>,
+    mut sensors_data: ResMut<SensorsData>,
 ) {
     let rapier_context = read_rapier_context.single().unwrap();
-    println!("--- Sensor readings ---");
-    for sensor_tf in sensors_query {
+
+    for (i, sensor_tf) in sensors_query.iter().enumerate() {
         let origin = sensor_tf.translation();
-        let dir = Vec3::NEG_Z; // sensor_tf.rotation().mul_vec3(Vec3::NEG_Z);
+        let dir = sensor_tf.rotation().mul_vec3(Vec3::NEG_Z);
         let max_toi = 0.1;
 
         if let Some((entity, intersection)) = rapier_context.cast_ray_and_get_normal(
@@ -116,17 +104,14 @@ fn compute_sensor_readings(
             // Sensor is over the track
             let point: Vec3 = intersection.point.into();
             let (track_segment, transform) = track_segments_query.get(entity).unwrap();
-            println!(
-                "Ray hit {} at {:.2} X {:.2}",
-                entity,
-                point_to_new_origin(point, transform),
-                track_segment.intersection_to_sensor_value(Some(point), transform)
-            );
+            sensors_data.line_sensors[i] =
+                track_segment.intersection_to_sensor_value(point, transform);
         } else {
-            println!("Ray hit nothing");
+            // Sensor is out
+            sensors_data.line_sensors[i] = 100.0;
         }
     }
-    println!("-----------------------");
+    println!("{:?}", sensors_data.line_sensors);
 }
 
 fn compute_bot_position(
@@ -162,7 +147,7 @@ fn compute_bot_position(
 }
 
 pub fn add_sensors(app: &mut App) {
-    app.add_systems(
+    app.insert_resource(SensorsData::default()).add_systems(
         RunFixedMainLoop,
         (compute_sensor_readings, compute_bot_position)
             .chain()
