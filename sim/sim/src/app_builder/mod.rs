@@ -27,7 +27,8 @@ pub fn create_app() -> App {
         DefaultEditorCamPlugins,
         RapierDebugRenderPlugin::default(),
     ))
-    .insert_resource(Time::<Fixed>::from_hz(10000.0));
+    .insert_resource(Time::<Fixed>::from_hz(10000.0))
+    .insert_resource(Time::from_hz(120.0));
 
     add_track(&mut app);
     add_bot_setup(&mut app);
