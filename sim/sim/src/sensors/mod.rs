@@ -3,7 +3,7 @@ use bevy_rapier3d::prelude::*;
 
 use crate::track::{TRACK_HALF_WIDTH, TrackSegment};
 use crate::utils::point_to_new_origin;
-use execution_data::SensorsData;
+use execution_data::{BotPosition, SensorsData};
 
 fn line_reflection(x: f32) -> f32 {
     const LINE_SIZE: f32 = 0.02; // 20 mm
@@ -68,13 +68,6 @@ impl TrackSimulateLine for TrackSegment {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum BotPosition {
-    OnTrack,
-    Out,
-    End,
-}
-
 #[derive(Component, Default)]
 pub struct BotPositionDetector {}
 
@@ -111,20 +104,20 @@ fn compute_sensor_readings(
             sensors_data.line_sensors[i] = 100.0;
         }
     }
-    println!("{:?}", sensors_data.line_sensors);
 }
 
 fn compute_bot_position(
     read_rapier_context: ReadRapierContext,
     bot_query: Query<&GlobalTransform, With<BotPositionDetector>>,
     track_segments_query: Query<&TrackSegment>,
+    mut sensors_data: ResMut<SensorsData>,
 ) {
     let rapier_context = read_rapier_context.single().unwrap();
     let origin = bot_query.single().unwrap().translation();
     let dir = Vec3::NEG_Z;
     let max_toi = 0.1;
 
-    let bot_position = if let Some((entity, _)) = rapier_context.cast_ray_and_get_normal(
+    sensors_data.bot_position = if let Some((entity, _)) = rapier_context.cast_ray_and_get_normal(
         origin,
         dir,
         max_toi,
@@ -132,24 +125,30 @@ fn compute_bot_position(
         QueryFilter::default().predicate(&|entity| track_segments_query.get(entity).is_ok()),
     ) {
         // Bot is over the track
-        // println!("Ray from {:.2} hit {} at {:.2}", origin, entity, point);
-
         if track_segments_query.get(entity).unwrap() == &TrackSegment::End {
             BotPosition::End
         } else {
             BotPosition::OnTrack
         }
     } else {
-        // println!("Ray from {:.2} hit nothing", origin);
+        // Bot is out
         BotPosition::Out
     };
-    println!("bot position: {:?}", bot_position);
+}
+
+fn print_sensors_data(sensors_data: Res<SensorsData>) {
+    println!("line sensors: {:?}", sensors_data.line_sensors);
+    println!("bot position: {:?}", sensors_data.bot_position);
 }
 
 pub fn add_sensors(app: &mut App) {
     app.insert_resource(SensorsData::default()).add_systems(
         RunFixedMainLoop,
-        (compute_sensor_readings, compute_bot_position)
+        (
+            compute_sensor_readings,
+            compute_bot_position,
+            print_sensors_data,
+        )
             .chain()
             .in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
     );

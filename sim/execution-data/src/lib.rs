@@ -50,6 +50,20 @@ pub struct ImuFusedData {
     pub yaw: f32,
 }
 
+/// Bot logical positions
+#[derive(Debug, Clone, Copy)]
+pub enum BotPosition {
+    OnTrack,
+    Out,
+    End,
+}
+
+impl Default for BotPosition {
+    fn default() -> Self {
+        BotPosition::OnTrack
+    }
+}
+
 /// Wrapper for all sensors data.
 #[derive(Clone, Copy, Resource, Default)]
 pub struct SensorsData {
@@ -58,6 +72,7 @@ pub struct SensorsData {
     pub gyro: GyroData,
     pub imu_fused: ImuFusedData,
     pub line_sensors: [f32; 16],
+    pub bot_position: BotPosition,
 }
 
 pub trait SimulationStepper {
