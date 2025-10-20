@@ -1,29 +1,16 @@
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WheelSide {
-    Left,
-    Right,
-}
-
-impl WheelSide {
-    pub fn sign(&self) -> f32 {
-        match self {
-            WheelSide::Left => 1.0,
-            WheelSide::Right => -1.0,
-        }
-    }
-}
+use crate::utils::Side;
 
 #[derive(Component)]
 pub struct Wheel {
-    axle: Vec3,
-    side: WheelSide,
+    pub axle: Vec3,
+    pub side: Side,
 }
 
 impl Wheel {
-    pub fn new(axle: Vec3, side: WheelSide) -> Self {
+    pub fn new(axle: Vec3, side: Side) -> Self {
         Self { axle, side }
     }
 }
@@ -66,10 +53,10 @@ impl MotorsPwm {
         }
     }
 
-    pub fn pwm(&self, side: WheelSide) -> f32 {
+    pub fn pwm(&self, side: Side) -> f32 {
         match side {
-            WheelSide::Left => self.left_pwm,
-            WheelSide::Right => self.right_pwm,
+            Side::Left => self.left_pwm,
+            Side::Right => self.right_pwm,
         }
     }
 }
@@ -151,10 +138,10 @@ fn apply_motors_pwm(
         fn new(left: Vec3, right: Vec3) -> Self {
             Self { left, right }
         }
-        fn axle(&self, side: WheelSide) -> Vec3 {
+        fn axle(&self, side: Side) -> Vec3 {
             match side {
-                WheelSide::Left => self.left,
-                WheelSide::Right => self.right,
+                Side::Left => self.left,
+                Side::Right => self.right,
             }
         }
     }
@@ -185,6 +172,7 @@ fn apply_motors_pwm(
         // );
     }
 
+    // #FIXME: only works along positive Y axis, not negative...
     motors_ext_force.torque = body_torque;
 }
 

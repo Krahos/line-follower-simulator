@@ -16,6 +16,10 @@ impl Side {
     }
 }
 
+pub trait SetBySide<T: Copy> {
+    fn set_by_side(&mut self, side: Side, value: T);
+}
+
 /// Helper to rotate a Vec2 by angle in radians
 /// # Arguments
 /// * `v`     - The vector to rotate

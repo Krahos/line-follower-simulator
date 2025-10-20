@@ -1,9 +1,10 @@
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 
-use crate::motors::{Motors, Wheel, WheelSide};
+use crate::motors::{Motors, Wheel};
 use crate::sensors::bot_position::BotPositionDetector;
 use crate::sensors::line_sensors::LineSensor;
+use crate::utils::Side;
 
 const BOT_COLLISION_GROUP: Group = Group::GROUP_1;
 
@@ -99,7 +100,7 @@ fn setup_bot(mut commands: Commands) {
         .id();
 
     // Wheels
-    for side in [WheelSide::Left, WheelSide::Right] {
+    for side in [Side::Left, Side::Right] {
         let wheel_world = Vec3::new(
             (width_axle + wheel_diameter) / 2.0 * -side.sign(),
             0.0,
