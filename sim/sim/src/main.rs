@@ -1,6 +1,16 @@
 use clap::{self, Parser, Subcommand};
 use executor::test_run;
 
+mod app_builder;
+mod bot;
+mod motors;
+mod sensors;
+mod track;
+mod ui;
+mod utils;
+
+use crate::app_builder::create_app;
+
 #[derive(Parser)]
 #[clap(name = "sim")]
 #[clap(version = "1.0")]
@@ -64,6 +74,7 @@ fn main() -> executor::wasmtime::Result<()> {
                 "test robot \"{}\" output at path \"{}\" (write logs: {})...",
                 input, output, logs
             );
+            create_app().run();
         }
         Command::Serve => {
             println!("Starting server...");
