@@ -39,8 +39,16 @@ fn line_reflection(x: f32) -> f32 {
     }
 }
 
-impl TrackSegment {
-    pub fn intersection_to_sensor_value(
+trait TrackSimulateLine {
+    fn intersection_to_sensor_value(
+        &self,
+        intersection: Option<Vec3>,
+        transform: &GlobalTransform,
+    ) -> f32;
+}
+
+impl TrackSimulateLine for TrackSegment {
+    fn intersection_to_sensor_value(
         &self,
         intersection: Option<Vec3>,
         transform: &GlobalTransform,
