@@ -5,6 +5,8 @@ use bevy_egui::{
     EguiContexts, EguiGlobalSettings, EguiPlugin, EguiPrimaryContextPass, PrimaryEguiContext,
     egui::{self, Color32, Id, Modal, Response, Stroke, Ui},
 };
+use bevy_rapier3d::na::RealField;
+use egui_material_icons::icons;
 
 use crate::motors::MotorsPwm;
 
@@ -114,19 +116,19 @@ impl CameraFront {
 fn camera_icon(side: CameraSide, front: CameraFront) -> &'static str {
     match side {
         CameraSide::Left => match front {
-            CameraFront::Front => egui_material_icons::icons::ICON_NORTH_WEST,
-            CameraFront::Center => egui_material_icons::icons::ICON_WEST,
-            CameraFront::Back => egui_material_icons::icons::ICON_SOUTH_WEST,
+            CameraFront::Front => icons::ICON_NORTH_WEST,
+            CameraFront::Center => icons::ICON_WEST,
+            CameraFront::Back => icons::ICON_SOUTH_WEST,
         },
         CameraSide::Center => match front {
-            CameraFront::Front => egui_material_icons::icons::ICON_NORTH,
-            CameraFront::Center => egui_material_icons::icons::ICON_CENTER_FOCUS_WEAK,
-            CameraFront::Back => egui_material_icons::icons::ICON_SOUTH,
+            CameraFront::Front => icons::ICON_NORTH,
+            CameraFront::Center => icons::ICON_CENTER_FOCUS_WEAK,
+            CameraFront::Back => icons::ICON_SOUTH,
         },
         CameraSide::Right => match front {
-            CameraFront::Front => egui_material_icons::icons::ICON_NORTH_EAST,
-            CameraFront::Center => egui_material_icons::icons::ICON_EAST,
-            CameraFront::Back => egui_material_icons::icons::ICON_SOUTH_EAST,
+            CameraFront::Front => icons::ICON_NORTH_EAST,
+            CameraFront::Center => icons::ICON_EAST,
+            CameraFront::Back => icons::ICON_SOUTH_EAST,
         },
     }
 }
@@ -153,6 +155,11 @@ fn gui_example(
     ctx.style_mut(|style| style.visuals.panel_fill = Color32::from_rgba_unmultiplied(0, 0, 0, 0));
     egui_material_icons::initialize(ctx);
 
+    if gui_state.play_active {
+        gui_state.play_time_sec += time.delta_secs();
+    }
+    gui_state.play_time_sec = gui_state.play_time_sec.min(gui_state.play_max_sec).max(0.0);
+
     let (_, mut e_cam, mut ec_transform) = camera.single_mut()?;
 
     egui::TopBottomPanel::bottom("bottom_panel")
@@ -160,8 +167,68 @@ fn gui_example(
         .default_height(gui_state.base_text_size * 1.8)
         .show_separator_line(false)
         .show(ctx, |ui| {
-            ui.label("Bottom fixed panel");
-            ui.allocate_rect(ui.available_rect_before_wrap(), egui::Sense::hover());
+            ui.horizontal(|ui| {
+                let size = gui_state.base_text_size * 4.0;
+                if icon_button(ui, icons::ICON_BUILD, size).clicked() {
+                    gui_state.show_test_ui = !gui_state.show_test_ui;
+                }
+                ui.separator();
+
+                if gui_state.show_test_ui {
+                    for _ in 0..16 {
+                        rl(ui, "0.00", size);
+                        ui.add_space(size / 2.0);
+                    }
+
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if icon_button(ui, icons::ICON_ZOOM_IN, size).clicked() {
+                            gui_state.base_text_size -= 1.0;
+                            gui_state.base_text_size = gui_state.base_text_size.max(3.0);
+                        }
+                        if icon_button(ui, icons::ICON_ZOOM_OUT, size).clicked() {
+                            gui_state.base_text_size += 1.0;
+                        }
+                    });
+                } else {
+                    if icon_button(ui, icons::ICON_SKIP_PREVIOUS, size).clicked() {
+                        gui_state.play_time_sec = 0.0;
+                    }
+                    if gui_state.play_active {
+                        if icon_button(ui, icons::ICON_PAUSE, size).clicked() {
+                            gui_state.play_active = false;
+                        }
+                    } else {
+                        if icon_button(ui, icons::ICON_PLAY_ARROW, size).clicked() {
+                            gui_state.play_active = true;
+                        }
+                    }
+                    if icon_button(ui, icons::ICON_SKIP_NEXT, size).clicked() {
+                        gui_state.play_time_sec = gui_state.play_max_sec;
+                    }
+
+                    ui.add_space(size / 2.0);
+                    rl(ui, format!("{:.3}", gui_state.play_time_sec), size);
+                    ui.add_space(size / 2.0);
+
+                    let max_time = gui_state.play_max_sec;
+                    ui.add(egui::Slider::new(
+                        &mut gui_state.play_time_sec,
+                        0.0..=max_time,
+                    ));
+
+                    if icon_button(ui, icons::ICON_ZOOM_IN, size).clicked() {
+                        gui_state.base_text_size -= 1.0;
+                        gui_state.base_text_size = gui_state.base_text_size.max(3.0);
+                    }
+                    if icon_button(ui, icons::ICON_ZOOM_OUT, size).clicked() {
+                        gui_state.base_text_size += 1.0;
+                    }
+                    if icon_button(ui, icons::ICON_ADD, size).clicked() {
+                        println!("ADD BOT");
+                    }
+                }
+            });
+            //ui.allocate_rect(ui.available_rect_before_wrap(), egui::Sense::hover());
         });
 
     let cb_size = gui_state.base_text_size * 3.0;
@@ -318,14 +385,22 @@ struct BotName {
 
 #[derive(Resource)]
 struct GuiState {
+    show_test_ui: bool,
     base_text_size: f32,
+    play_time_sec: f32,
+    play_active: bool,
+    play_max_sec: f32,
     bot_with_pending_remove: Option<BotName>,
 }
 
 impl Default for GuiState {
     fn default() -> Self {
         Self {
+            show_test_ui: true,
             base_text_size: 8.0,
+            play_time_sec: 0.0,
+            play_active: false,
+            play_max_sec: 60.0,
             bot_with_pending_remove: None,
         }
     }
@@ -355,24 +430,16 @@ fn ask_bot_remove(ui: &mut Ui, gui_state: &mut GuiState) -> Option<bool> {
                 egui::Sides::new().show(
                     ui,
                     |ui| {
-                        if icon_button(
-                            ui,
-                            egui_material_icons::icons::ICON_DELETE,
-                            gui_state.base_text_size * 4.0,
-                        )
-                        .clicked()
+                        if icon_button(ui, icons::ICON_DELETE, gui_state.base_text_size * 4.0)
+                            .clicked()
                         {
                             yes = true;
                             ui.close();
                         }
                     },
                     |ui| {
-                        if icon_button(
-                            ui,
-                            egui_material_icons::icons::ICON_CANCEL,
-                            gui_state.base_text_size * 4.0,
-                        )
-                        .clicked()
+                        if icon_button(ui, icons::ICON_CANCEL, gui_state.base_text_size * 4.0)
+                            .clicked()
                         {
                             no = true;
                             ui.close();
