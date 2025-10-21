@@ -4,6 +4,7 @@ use bevy_rapier3d::prelude::*;
 use bevy_rapier3d::rapier::prelude::IntegrationParameters;
 
 use crate::bot::add_bot_setup;
+use crate::data::add_data;
 use crate::motors::add_motors;
 use crate::sensors::add_sensors;
 use crate::track::add_track;
@@ -35,6 +36,7 @@ pub fn create_app() -> App {
     add_ui_setup(&mut app);
     add_sensors(&mut app);
     add_motors(&mut app);
+    add_data(&mut app);
 
     app
 }

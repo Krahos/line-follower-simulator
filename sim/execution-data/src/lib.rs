@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use bevy::{ecs::resource::Resource, math::Vec3, transform::components::Transform};
 
 #[derive(Clone, Copy)]
@@ -8,6 +10,23 @@ pub struct ExecutionStep {
     pub right_wheel_transform: Transform,
 }
 
+impl ExecutionStep {
+    pub fn new(
+        time_us: u32,
+        body_transform: Transform,
+        left_wheel_transform: Transform,
+        right_wheel_transform: Transform,
+    ) -> Self {
+        Self {
+            time_us,
+            body_transform,
+            left_wheel_transform,
+            right_wheel_transform,
+        }
+    }
+}
+
+#[derive(Clone, Resource, Default)]
 pub struct ExecutionData {
     pub steps: Vec<ExecutionStep>,
 }

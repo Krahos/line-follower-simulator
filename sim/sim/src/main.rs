@@ -3,6 +3,7 @@ use executor::test_run;
 
 mod app_builder;
 mod bot;
+mod data;
 mod motors;
 mod sensors;
 mod track;
