@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use execution_data::{ExecutionData, SimulationStepper};
 use wasmtime::component::HasSelf;
 
 use crate::{
@@ -45,14 +46,11 @@ pub fn get_robot_configuration(wasm_bytes: &[u8]) -> wasmtime::Result<Configurat
 
 pub fn run_robot_simulation(
     wasm_bytes: &[u8],
-    _configuration: Configuration,
+    stepper: impl SimulationStepper + 'static,
     total_simulation_time: TimeUs,
     workdir_path: Option<PathBuf>,
     output_log: bool,
-) -> wasmtime::Result<()> {
-    // Create a mock stepper (configuration will be used for the real one)
-    let stepper = MockStepper::new();
-
+) -> wasmtime::Result<ExecutionData> {
     // Create engine and store
     let mut engine_config = wasmtime::Config::new();
     engine_config.consume_fuel(true);
@@ -83,8 +81,9 @@ pub fn run_robot_simulation(
     robot_component.robot().call_run(&mut store)?;
     println!("remaining fuel after run: {}", store.get_fuel()?);
 
-    let host = store.data();
+    let host = store.data_mut();
     host.write_log_file();
+    let data = host.get_execution_data();
 
-    Ok(())
+    Ok(data)
 }

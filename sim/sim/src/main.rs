@@ -1,5 +1,4 @@
 use clap::{self, Parser, Subcommand};
-use executor::test_run;
 use runner::simulator_runner;
 
 mod app_builder;
@@ -77,8 +76,6 @@ fn main() -> executor::wasmtime::Result<()> {
                 "test robot \"{}\" output at path \"{}\" (write logs: {})...",
                 input, output, logs
             );
-
-            test_run(input, output, logs)?;
         }
         Command::Serve => {
             println!("Starting server...");

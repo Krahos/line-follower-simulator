@@ -6,7 +6,8 @@ use std::{
 };
 
 use execution_data::{
-    AccelData, GyroData, ImuFusedData, MotorAngles, MotorDriversDutyCycles, SimulationStepper,
+    AccelData, ExecutionData, GyroData, ImuFusedData, MotorAngles, MotorDriversDutyCycles,
+    SimulationStepper,
 };
 
 use crate::wasm_bindings::{
@@ -1243,5 +1244,9 @@ impl<S: SimulationStepper> BotHost<S> {
                 eprintln!("Error writing file {}: {}", log_file_path.display(), err);
             }
         }
+    }
+
+    pub fn get_execution_data(&mut self) -> ExecutionData {
+        self.stepper.get_data()
     }
 }

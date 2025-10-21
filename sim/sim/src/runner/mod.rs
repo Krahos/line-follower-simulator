@@ -1,5 +1,5 @@
 use bevy::app::{App, AppExit};
-use execution_data::{ExecutionData, MotorDriversDutyCycles, SensorsData, SimulationStepper};
+use execution_data::{ExecutionData, MotorDriversDutyCycles, SensorsData};
 use executor::{wasm_bindings::exports::robot::Configuration, wasm_executor, wasmtime};
 
 use crate::app_builder::{self, create_app};
@@ -151,18 +151,18 @@ pub fn simulator_runner(
     create_app(app_builder::AppType::Simulator(runner_cfg.clone()))
         .set_runner(move |app| {
             let app_wrapper = AppWrapper::new(app);
-            let mut stepper = RunnerStepper::new(app_wrapper);
+            let stepper = RunnerStepper::new(app_wrapper);
 
             // Run robot logic
             match wasm_executor::run_robot_simulation(
                 &wasm_bytes,
-                runner_cfg,
+                stepper,
                 executor::TOTAL_SIMULATION_TIME_US,
                 Some(output.into()),
                 logs,
             ) {
-                Ok(_) => {
-                    result_sender.send(Ok(stepper.get_data())).ok();
+                Ok(data) => {
+                    result_sender.send(Ok(data)).ok();
                     AppExit::Success
                 }
                 Err(err) => {
