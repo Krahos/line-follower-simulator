@@ -68,17 +68,6 @@ fn main() -> executor::wasmtime::Result<()> {
                 "running robot \"{}\" output at path \"{}\" (write logs: {})...",
                 input, output, logs
             );
-            test_run(input, output, logs)?;
-        }
-        Command::Test {
-            input,
-            output,
-            logs,
-        } => {
-            println!(
-                "test robot \"{}\" output at path \"{}\" (write logs: {})...",
-                input, output, logs
-            );
 
             let bot_config = Configuration {
                 name: "bot test".into(),
@@ -109,6 +98,18 @@ fn main() -> executor::wasmtime::Result<()> {
                     }
                 })
                 .run();
+        }
+        Command::Test {
+            input,
+            output,
+            logs,
+        } => {
+            println!(
+                "test robot \"{}\" output at path \"{}\" (write logs: {})...",
+                input, output, logs
+            );
+
+            test_run(input, output, logs)?;
         }
         Command::Serve => {
             println!("Starting server...");
