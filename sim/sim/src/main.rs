@@ -97,7 +97,17 @@ fn main() -> executor::wasmtime::Result<()> {
                 front_sensors_spacing: 10.0,
                 front_sensors_height: 2.0,
             };
-            create_app(app_builder::AppType::Test(bot_config)).run();
+            create_app(app_builder::AppType::Simulator(bot_config))
+                .set_runner(|mut app| {
+                    loop {
+                        println!("In main loop");
+                        app.update();
+                        if let Some(exit) = app.should_exit() {
+                            return exit;
+                        }
+                    }
+                })
+                .run();
         }
         Command::Serve => {
             println!("Starting server...");

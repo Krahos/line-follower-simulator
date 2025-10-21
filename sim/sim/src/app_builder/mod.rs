@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::scene::ScenePlugin;
 use bevy_editor_cam::DefaultEditorCamPlugins;
 use bevy_rapier3d::prelude::*;
 use bevy_rapier3d::rapier::prelude::IntegrationParameters;
@@ -47,8 +48,13 @@ pub fn create_app(app_type: AppType) -> App {
 
     match app_type {
         AppType::Simulator(configuration) => {
-            app.add_plugins(MinimalPlugins)
-                .insert_resource(BotConfigWrapper::new(configuration));
+            app.add_plugins((
+                MinimalPlugins,
+                AssetPlugin::default(),
+                ScenePlugin::default(),
+            ))
+            .insert_resource(BotConfigWrapper::new(configuration))
+            .init_asset::<Mesh>();
 
             add_track(&mut app);
             add_bot_setup(&mut app);
