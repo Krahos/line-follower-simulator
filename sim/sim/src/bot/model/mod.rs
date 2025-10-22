@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 
+use super::BotBodyMarker;
 use super::motors::{Motors, Wheel};
 use super::sensors::bot_position::BotPositionDetector;
 use super::sensors::line_sensors::LineSensor;
@@ -21,8 +22,8 @@ const BOT_WHEEL_WEIGHT: f32 = 0.02;
 pub fn setup_bot_model(
     mut commands: Commands,
     config_wrapper: Res<BotConfigWrapper>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut meshes: ResMut<Assets<Mesh>>,
+    body_query: Query<Entity, With<BotBodyMarker>>,
+    wheels_query: Query<(Entity, &Wheel)>,
 ) {
     let config = &config_wrapper.config;
 
@@ -45,10 +46,6 @@ pub fn setup_bot_model(
     // Height of line sensors from the ground (in mm, from 1 to wheels radius)
     let front_sensors_height: f32 = config.front_sensors_height / 1000.0;
 
-    // Mesh
-    let cube_mesh = meshes.add(Cuboid::default());
-    let body_material = materials.add(Color::srgb(0.8, 0.2, 0.2));
-
     let body_world = Vec3::new(
         0.0,
         // (length_front - length_back) / 2.0,
@@ -61,67 +58,66 @@ pub fn setup_bot_model(
     let back_bumper_world = Vec3::new(0.0, -length_back, BOT_BUMPER_DIAMETER / 2.0 + clearing_back);
 
     let body_front_length = length_back / 2.0;
+
     // Static body with motors
-    let body = commands
-        .spawn((
-            Collider::compound(vec![
-                (
-                    Vec3::ZERO,
-                    Quat::IDENTITY,
-                    Collider::cuboid(
-                        BOT_BODY_WIDTH * 0.5,
-                        // (length_front + length_back) * 0.5,
-                        length_back,
-                        BOT_BODY_HEIGHT * 0.5,
-                    ),
+    let body = body_query.single().unwrap();
+    commands.entity(body).insert((
+        Collider::compound(vec![
+            (
+                Vec3::ZERO,
+                Quat::IDENTITY,
+                Collider::cuboid(
+                    BOT_BODY_WIDTH * 0.5,
+                    // (length_front + length_back) * 0.5,
+                    length_back,
+                    BOT_BODY_HEIGHT * 0.5,
                 ),
-                (
-                    Vec3::new(0.0, length_front - body_front_length / 2.0, 0.0),
-                    Quat::IDENTITY,
-                    Collider::cuboid(
-                        BOT_BODY_WIDTH * 0.5,
-                        body_front_length * 0.5,
-                        BOT_BODY_HEIGHT * 0.5,
-                    ),
+            ),
+            (
+                Vec3::new(0.0, length_front - body_front_length / 2.0, 0.0),
+                Quat::IDENTITY,
+                Collider::cuboid(
+                    BOT_BODY_WIDTH * 0.5,
+                    body_front_length * 0.5,
+                    BOT_BODY_HEIGHT * 0.5,
                 ),
-                (
-                    front_bumper_world - body_world,
-                    Quat::IDENTITY,
-                    Collider::capsule_x(BOT_BUMPER_WIDTH / 2.0, BOT_BUMPER_DIAMETER / 2.0),
-                ),
-                (
-                    back_bumper_world - body_world,
-                    Quat::IDENTITY,
-                    Collider::capsule_x(BOT_BUMPER_WIDTH / 2.0, BOT_BUMPER_DIAMETER / 2.0),
-                ),
-            ]),
-            RigidBody::Dynamic,
-            Friction {
-                coefficient: 0.1,
-                combine_rule: CoefficientCombineRule::Min,
-            },
-            ColliderMassProperties::Mass(BOT_BODY_WEIGHT),
-            CollisionGroups::new(BOT_COLLISION_GROUP, !BOT_COLLISION_GROUP),
-            Transform::from_xyz(body_world.x, body_world.y, body_world.z),
-            GlobalTransform::default(),
-            Motors::new(Vec3::X, Vec3::NEG_X, gear_ratio_num, gear_ratio_den),
-            BotPositionDetector::default(),
-            ExternalForce::default(),
-            Velocity::zero(),
-            Mesh3d(cube_mesh.clone()),
-            MeshMaterial3d(body_material.clone()),
-        ))
-        .id();
+            ),
+            (
+                front_bumper_world - body_world,
+                Quat::IDENTITY,
+                Collider::capsule_x(BOT_BUMPER_WIDTH / 2.0, BOT_BUMPER_DIAMETER / 2.0),
+            ),
+            (
+                back_bumper_world - body_world,
+                Quat::IDENTITY,
+                Collider::capsule_x(BOT_BUMPER_WIDTH / 2.0, BOT_BUMPER_DIAMETER / 2.0),
+            ),
+        ]),
+        RigidBody::Dynamic,
+        Friction {
+            coefficient: 0.1,
+            combine_rule: CoefficientCombineRule::Min,
+        },
+        ColliderMassProperties::Mass(BOT_BODY_WEIGHT),
+        CollisionGroups::new(BOT_COLLISION_GROUP, !BOT_COLLISION_GROUP),
+        Transform::from_xyz(body_world.x, body_world.y, body_world.z),
+        GlobalTransform::default(),
+        Motors::new(Vec3::X, Vec3::NEG_X, gear_ratio_num, gear_ratio_den),
+        BotPositionDetector::default(),
+        ExternalForce::default(),
+        Velocity::zero(),
+    ));
 
     // Wheels
-    for side in [Side::Left, Side::Right] {
+    for (entity, wheel) in wheels_query {
+        let side = wheel.side;
         let wheel_world = Vec3::new(
             (width_axle + wheel_diameter) / 2.0 * -side.sign(),
             0.0,
             wheel_diameter / 2.0,
         );
 
-        commands.spawn((
+        commands.entity(entity).insert((
             Collider::ball(wheel_diameter / 2.0),
             Transform::from_xyz(wheel_world.x, wheel_world.y, wheel_world.z),
             RigidBody::Dynamic,
@@ -131,7 +127,6 @@ pub fn setup_bot_model(
             },
             ColliderMassProperties::Mass(BOT_WHEEL_WEIGHT),
             CollisionGroups::new(BOT_COLLISION_GROUP, !BOT_COLLISION_GROUP),
-            Wheel::new(Vec3::NEG_X * side.sign(), side),
             Velocity::zero(),
             ExternalForce::default(),
             ImpulseJoint::new(
