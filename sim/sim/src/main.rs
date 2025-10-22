@@ -1,5 +1,8 @@
 use clap::{self, Parser, Subcommand};
+use executor::wasm_bindings::exports::robot::{Color, Configuration};
 use runner::simulator_runner;
+
+use crate::app_builder::create_app;
 
 mod app_builder;
 mod bot;
@@ -80,6 +83,27 @@ fn main() -> executor::wasmtime::Result<()> {
                 "test robot \"{}\" output at path \"{}\" (write logs: {})...",
                 input, output, logs
             );
+
+            let bot_config = Configuration {
+                name: "bot test".into(),
+                color_main: Color { r: 0, g: 255, b: 0 },
+                color_secondary: Color {
+                    r: 255,
+                    g: 0,
+                    b: 255,
+                },
+                width_axle: 100.0,
+                length_front: 100.0,
+                length_back: 20.0,
+                clearing_back: 10.0,
+                wheel_diameter: 20.0,
+                gear_ratio_num: 1,
+                gear_ratio_den: 1,
+                front_sensors_spacing: 10.0,
+                front_sensors_height: 2.0,
+            };
+
+            create_app(app_builder::AppType::Test(bot_config), 500).run();
         }
         Command::Serve => {
             println!("Starting server...");
