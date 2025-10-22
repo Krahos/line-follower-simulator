@@ -75,6 +75,9 @@ world line-follower-robot {
             ready(device-value),
         }
 
+        /// Perform a device operation (returns immediately the current value if possible, not for sleep or wait operations)
+        device-operation-immediate: func(operation: device-operation) -> device-value;
+
         /// Perform a blocking operation (returns the provided value, blocking for the needed time)
         device-operation-blocking: func(operation: device-operation) -> device-value;
 

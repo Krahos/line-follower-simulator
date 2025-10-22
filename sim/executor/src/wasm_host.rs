@@ -334,6 +334,7 @@ impl FutureOperation {
     pub fn compute_value(
         &self,
         stepper: &impl SimulationStepper,
+        stepped_data: &SteppedData,
         current_time: TimeUs,
     ) -> DeviceValueRaw {
         match self {
@@ -347,9 +348,9 @@ impl FutureOperation {
                 DeviceValueRaw::from_motor_angles(stepper.get_motor_angles())
             }
             FutureOperation::ReadAccel => DeviceValueRaw::from_accel_data(stepper.get_accel()),
-            FutureOperation::ReadGyro => DeviceValueRaw::from_gyro_data(stepper.get_gyro()),
+            FutureOperation::ReadGyro => DeviceValueRaw::from_gyro_data(stepped_data.gyro_data),
             FutureOperation::ReadImuFusedData => {
-                DeviceValueRaw::from_imu_fused_data(stepper.get_imu_fused_data())
+                DeviceValueRaw::from_imu_fused_data(stepped_data.imu_fused_data)
             }
             FutureOperation::GetTime => DeviceValueRaw::zero().with_u32(0, current_time),
             FutureOperation::Sleep => DeviceValueRaw::zero(),
@@ -604,12 +605,16 @@ impl Ord for FutureValueReadyTime {
     }
 }
 
+const READY_STEPS_GYRO: u32 = 2;
+const READY_STEPS_IMU_FUSED: u32 = 10;
+
 pub trait DeviceOperationExt {
     fn ready_condition(
         &self,
         current_time: TimeUs,
         stepper: &impl SimulationStepper,
     ) -> FutureReadyCondition;
+    fn ready_steps(&self) -> u32;
     fn duration(&self, current_time: TimeUs) -> TimeUs;
 }
 
@@ -631,7 +636,7 @@ impl DeviceOperationExt for DeviceOperation {
                 let trigger_time = if stray_time == 0 {
                     current_time
                 } else {
-                    current_time + step_time - stray_time
+                    current_time + (step_time * self.ready_steps()) - stray_time
                 };
                 FutureReadyCondition::ReadyAt(trigger_time)
             }
@@ -646,6 +651,23 @@ impl DeviceOperationExt for DeviceOperation {
             }
             DeviceOperation::WaitEnabled => FutureReadyCondition::IsActive,
             DeviceOperation::WaitDisabled => FutureReadyCondition::IsInactive,
+        }
+    }
+
+    fn ready_steps(&self) -> u32 {
+        match *self {
+            DeviceOperation::ReadLineLeft
+            | DeviceOperation::ReadLineRight
+            | DeviceOperation::ReadMotorAngles
+            | DeviceOperation::ReadAccel
+            | DeviceOperation::GetTime
+            | DeviceOperation::GetEnabled
+            | DeviceOperation::WaitEnabled
+            | DeviceOperation::WaitDisabled
+            | DeviceOperation::SleepFor(_)
+            | DeviceOperation::SleepUntil(_) => 1,
+            DeviceOperation::ReadGyro => READY_STEPS_GYRO,
+            DeviceOperation::ReadImuFusedData => READY_STEPS_IMU_FUSED,
         }
     }
 
@@ -724,11 +746,19 @@ impl WakeupPoint {
     }
 }
 
+#[derive(Clone, Copy, Default)]
+struct SteppedData {
+    pub gyro_data: GyroData,
+    pub imu_fused_data: ImuFusedData,
+}
+
 pub struct BotHost<S: SimulationStepper> {
     stepper: S,
     total_simulation_time: TimeUs,
     current_fuel: u64,
     skipped_fuel: u64,
+
+    stepped_data: SteppedData,
 
     first_wakeup_point: WakeupPoint,
 
@@ -743,6 +773,35 @@ pub struct BotHost<S: SimulationStepper> {
 }
 
 impl<S: SimulationStepper> wasm_bindings::devices::Host for BotHost<S> {
+    #[doc = " Perform a device operation (returns immediately the current value if possible, not for sleep or wait operations)"]
+    fn device_operation_immediate(
+        &mut self,
+        current_fuel: u64,
+        operation: DeviceOperation,
+    ) -> wasmtime::Result<DeviceValue> {
+        match operation {
+            DeviceOperation::ReadLineLeft
+            | DeviceOperation::ReadLineRight
+            | DeviceOperation::ReadMotorAngles
+            | DeviceOperation::ReadAccel
+            | DeviceOperation::ReadGyro
+            | DeviceOperation::ReadImuFusedData
+            | DeviceOperation::GetTime
+            | DeviceOperation::GetEnabled => {
+                let start_time = self.setup_current_time(current_fuel)?;
+                let op: FutureOperation = operation.into();
+                Ok(op
+                    .compute_value(&self.stepper, &self.stepped_data, start_time)
+                    .into())
+            }
+            DeviceOperation::SleepFor(_)
+            | DeviceOperation::SleepUntil(_)
+            | DeviceOperation::WaitEnabled
+            | DeviceOperation::WaitDisabled => {
+                self.device_operation_blocking(current_fuel, operation)
+            }
+        }
+    }
     #[doc = " Perform a blocking operation (returns the provided value, blocking for the needed time)"]
     fn device_operation_blocking(
         &mut self,
@@ -769,7 +828,9 @@ impl<S: SimulationStepper> wasm_bindings::devices::Host for BotHost<S> {
 
         self.set_current_time(end_time)?;
         let op: FutureOperation = operation.into();
-        Ok(op.compute_value(&self.stepper, start_time).into())
+        Ok(op
+            .compute_value(&self.stepper, &self.stepped_data, start_time)
+            .into())
     }
 
     #[doc = " Initiate an async operation (immediately returns a handle to the future value)"]
@@ -1099,6 +1160,7 @@ impl<S: SimulationStepper> BotHost<S> {
             total_simulation_time,
             current_fuel: fuel_for_time_us(total_simulation_time),
             skipped_fuel: 0,
+            stepped_data: SteppedData::default(),
             first_wakeup_point: WakeupPoint::Disabled,
             stepper,
             workdir_path,
@@ -1206,8 +1268,11 @@ impl<S: SimulationStepper> BotHost<S> {
                         if f.value == FutureValueStatus::Pending {
                             match f.ready_condition {
                                 FutureReadyCondition::ReadyAt(ready_time) => {
-                                    let value =
-                                        f.operation.compute_value(&self.stepper, ready_time);
+                                    let value = f.operation.compute_value(
+                                        &self.stepper,
+                                        &self.stepped_data,
+                                        ready_time,
+                                    );
                                     f.value = FutureValueStatus::Ready(value);
                                 }
                                 FutureReadyCondition::IsActive
@@ -1227,6 +1292,15 @@ impl<S: SimulationStepper> BotHost<S> {
 
     pub fn step(&mut self) {
         self.stepper.step();
+
+        let steps = self.stepper.get_step_count() as u32;
+        if steps % READY_STEPS_GYRO == 0 {
+            self.stepped_data.gyro_data = self.stepper.get_gyro();
+        }
+        if steps % READY_STEPS_IMU_FUSED == 0 {
+            self.stepped_data.imu_fused_data = self.stepper.get_imu_fused_data();
+        }
+
         self.update_futures(self.stepper.get_time_us());
     }
 

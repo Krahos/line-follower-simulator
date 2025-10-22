@@ -446,6 +446,12 @@ pub mod devices {
     pub trait HostWithStore: wasmtime::component::HasData {}
     impl<_T: ?Sized> HostWithStore for _T where _T: wasmtime::component::HasData {}
     pub trait Host: Sized {
+        /// Perform a device operation (returns immediately the current value if possible, not for sleep or wait operations)
+        fn device_operation_immediate(
+            &mut self,
+            current_fuel: u64,
+            operation: DeviceOperation,
+        ) -> wasmtime::Result<DeviceValue>;
         /// Perform a blocking operation (returns the provided value, blocking for the needed time)
         fn device_operation_blocking(
             &mut self,
@@ -478,6 +484,14 @@ pub mod devices {
         ) -> wasmtime::Result<()>;
     }
     impl<_T: Host + ?Sized> Host for &mut _T {
+        /// Perform a device operation (returns immediately the current value if possible, not for sleep or wait operations)
+        fn device_operation_immediate(
+            &mut self,
+            current_fuel: u64,
+            operation: DeviceOperation,
+        ) -> wasmtime::Result<DeviceValue> {
+            Host::device_operation_immediate(*self, current_fuel, operation)
+        }
         /// Perform a blocking operation (returns the provided value, blocking for the needed time)
         fn device_operation_blocking(
             &mut self,
@@ -531,6 +545,15 @@ pub mod devices {
         T: 'static,
     {
         let mut inst = linker.instance("devices")?;
+        inst.func_wrap(
+            "device-operation-immediate",
+            move |mut caller: wasmtime::StoreContextMut<'_, T>, (arg0,): (DeviceOperation,)| {
+                let current_fuel = caller.get_fuel()?;
+                let host = &mut host_getter(caller.data_mut());
+                let r = Host::device_operation_immediate(host, current_fuel, arg0)?;
+                Ok((r,))
+            },
+        )?;
         inst.func_wrap(
             "device-operation-blocking",
             move |mut caller: wasmtime::StoreContextMut<'_, T>, (arg0,): (DeviceOperation,)| {
