@@ -205,6 +205,57 @@ pub fn arc_mesh(radius: f32, width: f32, angle: f32, side: Side) -> Mesh {
     .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
 }
 
+pub fn quad_mesh(width: f32, height: f32) -> Mesh {
+    let half_x = width * 0.5;
+    let half_y = height * 0.5;
+    // top face positions
+    let mut positions: Vec<[f32; 3]> = vec![
+        [-half_x, -half_y, 0.0], // bottom-left
+        [half_x, -half_y, 0.0],  // bottom-right
+        [half_x, half_y, 0.0],   // top-right
+        [-half_x, half_y, 0.0],  // top-left
+    ];
+
+    let mut normals: Vec<[f32; 3]> = vec![[0.0, 0.0, 1.0]; 4];
+    let mut uvs: Vec<[f32; 2]> = vec![[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]];
+    // top face (CCW): two triangles covering the quad
+    let mut indices: Vec<u32> = vec![0, 1, 2, 0, 2, 3];
+
+    // Duplicate vertices for bottom face with flipped normals
+    let top_count = positions.len() as u32;
+    let positions_bottom = positions.clone();
+    let mut normals_bottom = normals.clone();
+    let uvs_bottom = uvs.clone();
+    for n in normals_bottom.iter_mut() {
+        n[2] = -n[2];
+    }
+
+    positions.extend(positions_bottom);
+    normals.extend(normals_bottom);
+    uvs.extend(uvs_bottom);
+
+    // bottom face indices (reversed winding)
+    // For the quad (4 vertices) add reversed-winding triangles for the bottom face
+    // bottom face: reversed winding of the top face
+    indices.extend_from_slice(&[
+        top_count + 2,
+        top_count + 1,
+        top_count + 0,
+        top_count + 3,
+        top_count + 2,
+        top_count + 0,
+    ]);
+
+    Mesh::new(
+        bevy::render::mesh::PrimitiveTopology::TriangleList,
+        bevy::render::render_asset::RenderAssetUsages::default(),
+    )
+    .with_inserted_indices(bevy::render::mesh::Indices::U32(indices))
+    .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
+    .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
+    .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct SegmentTransform {
     position: Vec2,
@@ -323,6 +374,40 @@ impl TrackSegment {
             ),
         }
     }
+
+    // pub fn mesh(&self) -> Mesh {
+    //     match *self {
+    //         TrackSegment::Start | TrackSegment::End => {
+    //             Collider::cuboid(TRACK_HALF_WIDTH, TRACK_TIPS_LENGTH / 2.0, TRACK_HALF_HEIGHT)
+    //         }
+    //         TrackSegment::Straight(data) => {
+    //             Collider::cuboid(TRACK_HALF_WIDTH, data.length / 2.0, TRACK_HALF_HEIGHT)
+    //         }
+    //         TrackSegment::NinetyDegTurn(data) => {
+    //             let hl: f32 = (data.line_half_length + TRACK_HALF_WIDTH) / 2.0;
+    //             let ht = (data.line_half_length - TRACK_HALF_WIDTH) / 2.0;
+    //             // Collider::cuboid(hl, hl, TRACK_HALF_HEIGHT);
+    //             Collider::compound(vec![
+    //                 (
+    //                     Vec3::ZERO,
+    //                     Quat::IDENTITY,
+    //                     Collider::cuboid(TRACK_HALF_WIDTH, hl, TRACK_HALF_HEIGHT),
+    //                 ),
+    //                 (
+    //                     Vec3::new(ht * -data.side.sign(), ht, 0.0),
+    //                     Quat::from_rotation_z(FRAC_PI_2),
+    //                     Collider::cuboid(TRACK_HALF_WIDTH, hl, TRACK_HALF_HEIGHT),
+    //                 ),
+    //             ])
+    //         }
+    //         TrackSegment::CyrcleTurn(data) => arc_mesh(
+    //             data.radius,
+    //             TRACK_HALF_WIDTH * 2.0,
+    //             data.angle.to_radians(),
+    //             data.side,
+    //         ),
+    //     }
+    // }
 
     pub fn transform(&self, origin: SegmentTransform) -> Transform {
         let transform_origin = match *self {
