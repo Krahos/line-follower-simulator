@@ -17,7 +17,7 @@ use egui_material_icons::icons::{
     ICON_NORTH_WEST, ICON_PAUSE, ICON_PLAY_ARROW, ICON_SKIP_NEXT, ICON_SKIP_PREVIOUS, ICON_SOUTH,
     ICON_SOUTH_EAST, ICON_SOUTH_WEST, ICON_WEST, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
-use execution_data::{MotorDriversDutyCycles, PWM_MAX};
+use execution_data::{MotorDriversDutyCycles, PWM_MAX, SensorsData};
 
 use crate::utils::EntityFeatures;
 
@@ -186,12 +186,12 @@ fn runner_gui_update(
                         .show_value(false),
                 );
 
+                if icon_button(ui, ICON_ZOOM_IN, size).clicked() {
+                    gui_state.base_text_size += 1.0;
+                }
                 if icon_button(ui, ICON_ZOOM_OUT, size).clicked() {
                     gui_state.base_text_size -= 1.0;
                     gui_state.base_text_size = gui_state.base_text_size.max(3.0);
-                }
-                if icon_button(ui, ICON_ZOOM_IN, size).clicked() {
-                    gui_state.base_text_size += 1.0;
                 }
                 if icon_button(ui, ICON_ADD, size).clicked() {
                     gui_state.file_dialog.pick_file();
@@ -278,6 +278,7 @@ fn test_gui_update(
     mut gui_state: ResMut<TestGuiState>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut pwm: ResMut<MotorDriversDutyCycles>,
+    sensors: Res<SensorsData>,
     mut camera: Query<(&Camera3d, &mut EditorCam, &mut Transform)>,
 ) -> Result {
     let ctx = contexts.ctx_mut()?;
@@ -298,18 +299,19 @@ fn test_gui_update(
                 }
                 ui.separator();
 
-                for _ in 0..16 {
-                    rl(ui, "0.00", size * 0.75);
+                for sensor_index in 0..16 {
+                    let value = sensors.line_sensors[sensor_index];
+                    rl(ui, &format!("{:6.2}", value), size * 0.5);
                     ui.add_space(size / 2.0);
                 }
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if icon_button(ui, ICON_ZOOM_OUT, size).clicked() {
-                        gui_state.base_text_size -= 1.0;
-                    }
                     if icon_button(ui, ICON_ZOOM_IN, size).clicked() {
                         gui_state.base_text_size += 1.0;
                         gui_state.base_text_size = gui_state.base_text_size.max(3.0);
+                    }
+                    if icon_button(ui, ICON_ZOOM_OUT, size).clicked() {
+                        gui_state.base_text_size -= 1.0;
                     }
                 });
             });
