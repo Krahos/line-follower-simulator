@@ -5,6 +5,7 @@ pub mod motors;
 pub mod sensors;
 pub mod vis;
 
+use execution_data::ExecutionData;
 use model::setup_bot_model;
 use motors::Wheel;
 use vis::setup_bot_visualizer;
@@ -30,6 +31,7 @@ impl Plugin for BotPlugin {
         if self.features.has_physics() {
             app.add_systems(Startup, setup_bot_model.after(setup_bot_entities));
             app.add_plugins((MotorsModelPlugin, SensorsModelPlugin));
+            app.insert_resource(ExecutionData::empty());
         }
         if self.features.has_visualization() {
             app.add_systems(Startup, setup_bot_visualizer.after(setup_bot_entities));

@@ -62,7 +62,8 @@ impl Plugin for HeadlessSetupPlugin {
             AssetPlugin::default(),
             ScenePlugin::default(),
         ))
-        .init_asset::<Mesh>();
+        .init_asset::<Mesh>()
+        .init_asset::<StandardMaterial>();
     }
 }
 
