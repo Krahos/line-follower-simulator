@@ -107,6 +107,104 @@ pub fn arc_collider(radius: f32, width: f32, angle: f32, side: Side, height: f32
     Collider::compound(parts)
 }
 
+pub fn arc_mesh(radius: f32, width: f32, angle: f32, side: Side) -> Mesh {
+    // Generate a flat 2D ring/arc mesh in the XY plane (Z = 0).
+    // The arc runs from angle=0 pointing along +Y and increases toward +X
+    // to match the TrackSegment conventions. The mesh contains only the
+    // top surface (single-sided) and is suitable for visualization.
+
+    use bevy::render::mesh::{Indices, PrimitiveTopology};
+
+    let angle = angle.abs() * side.sign();
+    let segments: usize =
+        ((TRACK_CIRCLE_SEGMENTS_PER_PI as f32 * angle.abs() / PI).round() as usize).max(1);
+    let delta = angle / segments as f32;
+    let offset = match side {
+        Side::Left => 0.0,
+        Side::Right => PI,
+    };
+
+    let r_in = radius - width / 2.0;
+    let r_out = radius + width / 2.0;
+
+    // We'll create (segments + 1) pairs of vertices (inner, outer) along the arc
+    let mut positions: Vec<[f32; 3]> = Vec::with_capacity((segments + 1) * 2);
+    let mut normals: Vec<[f32; 3]> = Vec::with_capacity((segments + 1) * 2);
+    let mut uvs: Vec<[f32; 2]> = Vec::with_capacity((segments + 1) * 2);
+    let mut indices: Vec<u32> = Vec::with_capacity(segments * 12); // *2 for double-sided
+
+    for i in 0..=segments {
+        let theta = (i as f32) * delta + offset;
+        let inner = [r_in * theta.cos(), r_in * theta.sin(), 0.0];
+        let outer = [r_out * theta.cos(), r_out * theta.sin(), 0.0];
+
+        // push inner then outer to make indexing predictable
+        positions.push(inner);
+        positions.push(outer);
+        normals.push([0.0, 0.0, 1.0]);
+        normals.push([0.0, 0.0, 1.0]);
+
+        // UV: u across the arc, v across the width (inner=0, outer=1)
+        let u = (i as f32) / (segments as f32);
+        uvs.push([u, 0.0]);
+        uvs.push([u, 1.0]);
+    }
+
+    // build triangles between consecutive pairs for the top face
+    for i in 0..segments {
+        let base = (i * 2) as u32; // inner_i = base, outer_i = base+1
+        // triangle 1: inner_i, outer_i, outer_i1
+        indices.push(base);
+        indices.push(base + 1);
+        indices.push(base + 3);
+        // triangle 2: inner_i, outer_i1, inner_i1
+        indices.push(base);
+        indices.push(base + 3);
+        indices.push(base + 2);
+    }
+
+    // To make the mesh double-sided, duplicate the vertices for the bottom
+    // face with flipped normals, and add triangles with reversed winding.
+    let top_vertex_count = positions.len() as u32;
+
+    // duplicate positions, normals (flipped), uvs
+    let positions_bottom = positions.clone();
+    let mut normals_bottom = normals.clone();
+    let uvs_bottom = uvs.clone();
+    for n in normals_bottom.iter_mut() {
+        n[2] = -n[2];
+    }
+
+    // append bottom vertex data
+    positions.extend(positions_bottom);
+    normals.extend(normals_bottom);
+    uvs.extend(uvs_bottom);
+
+    // add reversed-winding triangles for the bottom face
+    for i in 0..segments {
+        let base = (i * 2) as u32 + top_vertex_count; // inner_i = base, outer_i = base+1
+        // reversed triangles: outer_i1, outer_i, inner_i  (reverse of top)
+        indices.push(base + 3);
+        indices.push(base + 1);
+        indices.push(base);
+        // reversed triangle 2
+        indices.push(base + 2);
+        indices.push(base + 3);
+        indices.push(base);
+    }
+
+    use bevy::render::render_asset::RenderAssetUsages;
+
+    Mesh::new(
+        PrimitiveTopology::TriangleList,
+        RenderAssetUsages::default(),
+    )
+    .with_inserted_indices(Indices::U32(indices))
+    .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
+    .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
+    .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct SegmentTransform {
     position: Vec2,
@@ -327,7 +425,6 @@ impl TrackPlugin {
 impl Plugin for TrackPlugin {
     fn build(&self, app: &mut App) {
         // #TODO: add collider or meshes depending on self.features
-
         app.insert_resource(Track::new(vec![
             TrackSegment::start(),
             TrackSegment::straight(2.0),
