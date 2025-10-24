@@ -190,6 +190,7 @@ name = "line-follower-robot"
 version = "0.1.0"
 dependencies = [
  "futures-lite",
+ "pin-project-lite",
  "wit-bindgen",
 ]
 
