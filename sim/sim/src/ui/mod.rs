@@ -107,7 +107,7 @@ impl Default for RunnerGuiState {
             file_dialog: FileDialog::new(),
             new_bot_sender: Mutex::new(sender),
             new_bot_receiver: Mutex::new(receiver),
-            base_text_size: 8.0,
+            base_text_size: 10.0,
             play_time_sec: 0.0,
             play_active: false,
             play_max_sec: 60.0,
@@ -300,8 +300,8 @@ fn test_gui_update(
                 ui.separator();
 
                 for sensor_index in 0..16 {
-                    let value = sensors.line_sensors[sensor_index];
-                    rl(ui, &format!("{:6.2}", value), size * 0.5);
+                    let value = (sensors.line_sensors[sensor_index] * 255.0 / 100.0) as u8;
+                    rl(ui, &format!("{:3}", value), size * 0.5);
                     ui.add_space(size / 2.0);
                 }
 
@@ -339,6 +339,8 @@ fn test_gui_update(
             ui.vertical_centered(|ui| {
                 rl(ui, "PWM limits", gui_state.base_text_size);
                 ui.separator();
+
+                ui.style_mut().spacing.slider_width = 250.0;
                 rl(ui, "Forward", gui_state.base_text_size * 1.25);
                 ui.add(egui::Slider::new(&mut gui_state.pwm_fwd_cmd, 0..=PWM_MAX).show_value(true));
                 ui.add_space(4.0);
@@ -464,7 +466,7 @@ fn camera_buttons(
 ) {
     let cb_size = base_text_size * 3.0;
     ui.vertical_centered(|ui| {
-        ui.label("Camera views");
+        rl(ui, "Camera views", base_text_size);
         ui.separator();
         egui::Grid::new("camera_controls").show(ui, |ui| {
             for front in [CameraFront::Front, CameraFront::Center, CameraFront::Back] {
@@ -611,6 +613,10 @@ struct BotName {
 }
 
 fn setup_camera(mut commands: Commands) {
+    let side = CameraSide::Center;
+    let front = CameraFront::Center;
+    let origin = (Vec3::Z * CAMERA_Z) + side.offset() + front.offset();
+
     // Camera
     commands.spawn((
         Camera3d::default(),
@@ -621,14 +627,7 @@ fn setup_camera(mut commands: Commands) {
             },
             ..Default::default()
         },
-        Transform::from_translation(Vec3::X * 0.5).looking_at(
-            Vec3::X,
-            Vec3 {
-                x: 0.0,
-                y: 0.0,
-                z: 0.1,
-            },
-        ),
+        Transform::from_translation(origin).looking_at(Vec3::ZERO, Vec3::Z),
     ));
 }
 
