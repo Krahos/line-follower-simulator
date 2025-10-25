@@ -144,7 +144,9 @@ pub fn compute_sensor_readings(
                 .clamp(0.0, 100.0);
         } else {
             // Sensor is out
-            sensors_data.line_sensors[i] = rng.noisy_value(100.0, NOISE).clamp(0.0, 100.0);
+            sensors_data.line_sensors[i] = rng
+                .noisy_value(line_reflection_attenuation(100.0, sensor_z), NOISE)
+                .clamp(0.0, 100.0);
         }
     }
 }
