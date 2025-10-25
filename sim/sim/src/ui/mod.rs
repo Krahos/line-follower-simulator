@@ -126,7 +126,7 @@ impl Plugin for GuiSetupPlugin {
 }
 
 #[derive(Resource)]
-struct RunnerGuiState {
+pub struct RunnerGuiState {
     file_dialog: FileDialog,
     new_bot_sender: Mutex<std::sync::mpsc::Sender<wasmtime::Result<BotExecutionData>>>,
     new_bot_receiver: Mutex<std::sync::mpsc::Receiver<wasmtime::Result<BotExecutionData>>>,

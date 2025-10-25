@@ -13,6 +13,7 @@ mod server;
 mod track;
 mod ui;
 mod utils;
+mod visualizer;
 
 #[derive(Parser)]
 #[clap(name = "sim")]
