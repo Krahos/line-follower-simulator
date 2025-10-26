@@ -58,19 +58,15 @@ fn spawn_bot_body(
     assets: &BotAssets,
     data: Option<BotBodyExecutionData>,
 ) {
+    let id = commands
+        .spawn((
+            ChildOf(parent),
+            Mesh3d(assets.meshes.body.clone()),
+            MeshMaterial3d(assets.materials.body.clone()),
+        ))
+        .id();
     if let Some(data) = data {
-        commands.spawn((
-            ChildOf(parent),
-            Mesh3d(assets.meshes.body.clone()),
-            MeshMaterial3d(assets.materials.body.clone()),
-            data,
-        ));
-    } else {
-        commands.spawn((
-            ChildOf(parent),
-            Mesh3d(assets.meshes.body.clone()),
-            MeshMaterial3d(assets.materials.body.clone()),
-        ));
+        commands.entity(id).insert(data);
     }
 }
 
@@ -86,19 +82,15 @@ fn spawn_bot_wheel(
     assets: &BotAssets,
     data: Option<BotWheelExecutionData>,
 ) {
+    let id = commands
+        .spawn((
+            ChildOf(parent),
+            Mesh3d(assets.meshes.wheel.clone()),
+            MeshMaterial3d(assets.materials.wheel.clone()),
+        ))
+        .id();
     if let Some(data) = data {
-        commands.spawn((
-            ChildOf(parent),
-            Mesh3d(assets.meshes.wheel.clone()),
-            MeshMaterial3d(assets.materials.wheel.clone()),
-            data,
-        ));
-    } else {
-        commands.spawn((
-            ChildOf(parent),
-            Mesh3d(assets.meshes.wheel.clone()),
-            MeshMaterial3d(assets.materials.wheel.clone()),
-        ));
+        commands.entity(id).insert(data);
     }
 }
 
