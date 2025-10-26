@@ -1,6 +1,6 @@
 use crate::bot::BotPlugin;
 use crate::runner::BotExecutionData;
-use crate::track::TrackPlugin;
+use crate::track::{Track, TrackPlugin};
 use crate::ui::GuiSetupPlugin;
 use crate::utils::{EntityFeatures, NormalRandom};
 use bevy::prelude::*;
@@ -150,12 +150,13 @@ impl Plugin for RapierPhysicsSetupPlugin {
     }
 }
 
-pub fn create_app(app_type: AppType, step_period_us: u32) -> App {
+pub fn create_app(app_type: AppType, track: Track, step_period_us: u32) -> App {
     let mut app = App::new();
 
     let step_hz = 1_000_000.0 / (step_period_us as f64);
     app.insert_resource(Time::<Fixed>::from_hz(step_hz));
     app.insert_resource(NormalRandom::new());
+    app.insert_resource(track);
 
     if app_type.has_visualization() {
         app.add_plugins(WindowSetupPlugin);

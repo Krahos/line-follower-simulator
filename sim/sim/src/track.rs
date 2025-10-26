@@ -497,7 +497,7 @@ impl TrackSegment {
     }
 }
 
-#[derive(Resource)]
+#[derive(Clone, Resource)]
 pub struct Track {
     origin: SegmentTransform,
     segments: Vec<TrackSegment>,
@@ -569,16 +569,7 @@ impl TrackPlugin {
 impl Plugin for TrackPlugin {
     fn build(&self, app: &mut App) {
         let features = self.features;
-        app.insert_resource(Track::new(vec![
-            TrackSegment::start(),
-            TrackSegment::straight(2.0),
-            TrackSegment::ninety_deg_turn(0.5, Side::Right),
-            TrackSegment::cyrcle_turn(1.0, Angle::from_degrees(120.0), Side::Left),
-            TrackSegment::ninety_deg_turn(1.0, Side::Left),
-            TrackSegment::cyrcle_turn(2.0, Angle::from_degrees(60.0), Side::Right),
-            TrackSegment::end(),
-        ]))
-        .add_systems(
+        app.add_systems(
             Startup,
             move |mut commands: Commands,
                   track: Res<Track>,

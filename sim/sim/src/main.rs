@@ -1,7 +1,10 @@
 use app_builder::VisualizerData;
+use bevy::text::cosmic_text::Angle;
 use clap::{self, Parser, Subcommand};
 use executor::wasm_bindings::exports::robot::{Color, Configuration};
 use runner::run_bot_from_file;
+use track::{Track, TrackSegment};
+use utils::Side;
 
 use crate::app_builder::create_app;
 
@@ -76,6 +79,16 @@ enum Command {
 fn main() -> executor::wasmtime::Result<()> {
     let args = Args::parse();
 
+    let track = Track::new(vec![
+        TrackSegment::start(),
+        TrackSegment::straight(2.0),
+        TrackSegment::ninety_deg_turn(0.5, Side::Right),
+        TrackSegment::cyrcle_turn(1.0, Angle::from_degrees(120.0), Side::Left),
+        TrackSegment::ninety_deg_turn(1.0, Side::Left),
+        TrackSegment::cyrcle_turn(2.0, Angle::from_degrees(60.0), Side::Right),
+        TrackSegment::end(),
+    ]);
+
     match args.cmd {
         Command::Run {
             input,
@@ -89,7 +102,8 @@ fn main() -> executor::wasmtime::Result<()> {
                 input, output, logs
             );
 
-            let bot_execution_data = run_bot_from_file(input, Some(output.clone()), logs, period)?;
+            let bot_execution_data =
+                run_bot_from_file(input, Some(output.clone()), logs, period, track.clone())?;
             println!(
                 "data has {} frames",
                 bot_execution_data.data.body_data.steps.len()
@@ -103,6 +117,7 @@ fn main() -> executor::wasmtime::Result<()> {
                         logs,
                         period,
                     }),
+                    track,
                     period,
                 )
                 .run();
@@ -138,7 +153,7 @@ fn main() -> executor::wasmtime::Result<()> {
                 front_sensors_height: 4.0,
             };
 
-            create_app(app_builder::AppType::Test(bot_config), period).run();
+            create_app(app_builder::AppType::Test(bot_config), track, period).run();
         }
         Command::Serve {
             address,
@@ -152,6 +167,7 @@ fn main() -> executor::wasmtime::Result<()> {
                     port,
                     period,
                 }),
+                track,
                 period,
             )
             .run();

@@ -21,6 +21,7 @@ use crate::{
     app_builder::{AppType, BotConfigWrapper, VisualizerData},
     runner::{BotExecutionData, run_bot_from_file},
     server::start_server,
+    track::Track,
 };
 
 fn common_gui_setup(app: &mut App) {
@@ -62,7 +63,8 @@ pub fn runner_gui_setup(app: &mut App, visualizer_data: VisualizerData) {
             period,
         } => {
             let sender = gui_state.get_bot_sender().clone();
-            start_server(address, port, period, sender)
+            let track = app.world().resource::<Track>().clone();
+            start_server(address, port, track, period, sender)
                 .map_err(|err| {
                     eprintln!("error starting HTTP server: {}", err.to_string());
                     err
@@ -175,6 +177,7 @@ fn runner_gui_update(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut exit: EventWriter<AppExit>,
     mut camera: Query<(&mut PanOrbitCamera, &mut Transform)>,
+    track: Res<Track>,
     time: Res<Time>,
 ) -> Result {
     let ctx = contexts.ctx_mut()?;
@@ -249,8 +252,9 @@ fn runner_gui_update(
                     let output = gui_state.output.clone();
                     let logs = gui_state.logs;
                     let period = gui_state.period;
+                    let track = track.clone();
                     std::thread::spawn(move || {
-                        process_new_bot(path, output, logs, period, sender);
+                        process_new_bot(path, output, logs, track, period, sender);
                     });
                 }
                 gui_state.handle_new_bots();
@@ -541,13 +545,14 @@ fn process_new_bot(
     path: PathBuf,
     output: Option<String>,
     logs: bool,
+    track: Track,
     period: u32,
     sender: std::sync::mpsc::Sender<wasmtime::Result<BotExecutionData>>,
 ) {
     let input = path.display().to_string();
     std::thread::spawn(move || {
         sender
-            .send(run_bot_from_file(input, output, logs, period))
+            .send(run_bot_from_file(input, output, logs, period, track))
             .ok();
     });
 }

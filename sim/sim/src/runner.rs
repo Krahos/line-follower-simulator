@@ -4,7 +4,10 @@ use execution_data::{
 };
 use executor::{wasm_bindings::exports::robot::Configuration, wasm_executor, wasmtime};
 
-use crate::app_builder::{self, create_app};
+use crate::{
+    app_builder::{self, create_app},
+    track::Track,
+};
 
 pub struct AppWrapper {
     app: App,
@@ -155,10 +158,11 @@ pub fn run_bot_from_file(
     output: Option<String>,
     logs: bool,
     step_period_us: u32,
+    track: Track,
 ) -> wasmtime::Result<BotExecutionData> {
     // Load the component from disk
     let wasm_bytes = std::fs::read(&input)?;
-    run_bot_from_code(wasm_bytes, output, logs, step_period_us)
+    run_bot_from_code(wasm_bytes, output, logs, step_period_us, track)
 }
 
 pub fn run_bot_from_code(
@@ -166,6 +170,7 @@ pub fn run_bot_from_code(
     output: Option<String>,
     logs: bool,
     step_period_us: u32,
+    track: Track,
 ) -> wasmtime::Result<BotExecutionData> {
     // Get configuration
     let config = wasm_executor::get_robot_configuration(&wasm_bytes)?;
@@ -175,6 +180,7 @@ pub fn run_bot_from_code(
 
     create_app(
         app_builder::AppType::Simulator(config.clone()),
+        track,
         step_period_us,
     )
     .set_runner(move |app| {
