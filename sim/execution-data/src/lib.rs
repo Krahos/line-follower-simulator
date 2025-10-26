@@ -1,6 +1,7 @@
 use bevy::{
     ecs::{component::Component, resource::Resource},
     math::Vec3,
+    reflect::List,
     transform::components::Transform,
 };
 
@@ -15,6 +16,18 @@ impl BodyExecutionData {
         Self {
             period,
             steps: Vec::new(),
+        }
+    }
+
+    pub fn at_time_secs(&self, time_secs: f32) -> Transform {
+        if self.steps.is_empty() {
+            Transform::default()
+        } else {
+            let index = ((time_secs * 1_000_000.0 / self.period as f32)
+                .floor()
+                .max(0.0) as usize)
+                .min(self.steps.len() - 1);
+            self.steps[index]
         }
     }
 }
@@ -32,6 +45,18 @@ impl WheelExecutionData {
             period,
             axis,
             steps: Vec::new(),
+        }
+    }
+
+    pub fn at_time_secs(&self, time_secs: f32) -> f32 {
+        if self.steps.is_empty() {
+            0.0
+        } else {
+            let index = ((time_secs * 1_000_000.0 / self.period as f32)
+                .floor()
+                .max(0.0) as usize)
+                .min(self.steps.len() - 1);
+            self.steps[index]
         }
     }
 }

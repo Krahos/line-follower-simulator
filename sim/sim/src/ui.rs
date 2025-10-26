@@ -19,9 +19,13 @@ use executor::wasmtime;
 
 use crate::{
     app_builder::{AppType, BotConfigWrapper, VisualizerData},
+    bot::vis::BotAssets,
     runner::{BotExecutionData, run_bot_from_file},
     server::start_server,
     track::Track,
+    visualizer::{
+        BotVisualization, spawn_bot_visualization, sync_bot_body, sync_bot_layers, sync_bot_wheel,
+    },
 };
 
 fn common_gui_setup(app: &mut App) {
@@ -77,6 +81,7 @@ pub fn runner_gui_setup(app: &mut App, visualizer_data: VisualizerData) {
     }
     app.add_systems(EguiPrimaryContextPass, runner_gui_update)
         .insert_resource(gui_state);
+    app.add_systems(Update, (sync_bot_layers, sync_bot_body, sync_bot_wheel));
 }
 
 pub fn test_gui_setup(app: &mut App) {
@@ -133,6 +138,7 @@ pub struct RunnerGuiState {
     play_time_sec: f32,
     play_active: bool,
     play_max_sec: f32,
+    bot_count: usize,
     output: Option<String>,
     logs: bool,
     period: u32,
@@ -150,6 +156,7 @@ impl RunnerGuiState {
             play_time_sec: 0.0,
             play_active: false,
             play_max_sec: 60.0,
+            bot_count: 0,
             output,
             logs,
             period,
@@ -157,14 +164,42 @@ impl RunnerGuiState {
         }
     }
 
+    pub fn play_time_sec(&self) -> f32 {
+        self.play_time_sec
+    }
+
     pub fn get_bot_sender(&self) -> std::sync::mpsc::Sender<wasmtime::Result<BotExecutionData>> {
         self.new_bot_sender.lock().unwrap().clone()
     }
 
-    pub fn handle_new_bots(&self) {
+    pub fn handle_new_bots(
+        &mut self,
+        commands: &mut Commands,
+        track: &Track,
+        bot_assets: &BotAssets,
+        meshes: &mut Assets<Mesh>,
+        materials: &mut Assets<StandardMaterial>,
+    ) {
         while let Ok(bot) = self.new_bot_receiver.lock().unwrap().try_recv() {
             match bot {
-                Ok(bot) => println!("new bot steps: len {}", bot.data.body_data.steps.len()),
+                Ok(bot) => {
+                    self.bot_count += 1;
+                    println!(
+                        "new bot (number {}, steps {})",
+                        self.bot_count,
+                        bot.data.body_data.steps.len()
+                    );
+                    spawn_bot_visualization(
+                        commands,
+                        track,
+                        bot.data,
+                        bot.config,
+                        self.bot_count,
+                        bot_assets,
+                        meshes,
+                        materials,
+                    );
+                }
                 Err(err) => error!("Error receiving new bot: {}", err),
             }
         }
@@ -172,13 +207,18 @@ impl RunnerGuiState {
 }
 
 fn runner_gui_update(
+    mut commands: Commands,
     mut contexts: EguiContexts,
     mut gui_state: ResMut<RunnerGuiState>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut exit: EventWriter<AppExit>,
     mut camera: Query<(&mut PanOrbitCamera, &mut Transform)>,
+    mut bot_vis: Query<&mut BotVisualization>,
     track: Res<Track>,
     time: Res<Time>,
+    bot_assets: Res<BotAssets>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) -> Result {
     let ctx = contexts.ctx_mut()?;
     let (mut po_camera, mut po_transform) = camera.single_mut()?;
@@ -257,7 +297,14 @@ fn runner_gui_update(
                         process_new_bot(path, output, logs, track, period, sender);
                     });
                 }
-                gui_state.handle_new_bots();
+
+                gui_state.handle_new_bots(
+                    &mut commands,
+                    &track,
+                    &bot_assets,
+                    &mut meshes,
+                    &mut materials,
+                );
             });
         });
 
@@ -283,23 +330,41 @@ fn runner_gui_update(
             ui.vertical_centered(|ui| {
                 rl(ui, "Robots", gui_state.base_text_size);
                 ui.separator();
-                ui.horizontal(|ui| {
-                    if bot_status(
-                        ui,
-                        "Test BOT",
-                        Color32::RED,
-                        Color32::BLUE,
-                        time.elapsed_secs(),
-                        BotStatus::Running,
-                        gui_state.base_text_size,
-                    ) {
-                        gui_state.as_mut().bot_with_pending_remove = Some(BotName {
-                            name: "Test BOT".to_string(),
-                            c1: Color32::RED,
-                            c2: Color32::BLUE,
-                        })
-                    }
-                });
+
+                let mut bots = bot_vis.iter_mut().collect::<Vec<_>>();
+                bots.sort_by_key(|bot| bot.bot_number);
+                for (index, bot) in bots.iter_mut().enumerate() {
+                    bot.bot_number = index;
+                }
+                bots.reverse();
+
+                for bot in bots.iter() {
+                    ui.horizontal(|ui| {
+                        if bot_status(
+                            ui,
+                            &bot.config.name,
+                            Color32::from_rgb(
+                                bot.config.color_main.r,
+                                bot.config.color_main.g,
+                                bot.config.color_main.b,
+                            ),
+                            Color32::from_rgb(
+                                bot.config.color_secondary.r,
+                                bot.config.color_secondary.g,
+                                bot.config.color_secondary.b,
+                            ),
+                            time.elapsed_secs(),
+                            BotStatus::Running,
+                            gui_state.base_text_size,
+                        ) {
+                            gui_state.as_mut().bot_with_pending_remove = Some(BotName {
+                                name: "Test BOT".to_string(),
+                                c1: Color32::RED,
+                                c2: Color32::BLUE,
+                            })
+                        }
+                    });
+                }
             });
 
             if ask_bot_remove(ui, gui_state.as_mut()) == Some(true) {

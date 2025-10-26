@@ -5,11 +5,12 @@ use bevy::{
         entity::Entity,
         system::{Commands, Query, Res},
     },
+    math::Quat,
     pbr::StandardMaterial,
     render::mesh::Mesh,
     transform::components::Transform,
 };
-use execution_data::ExecutionData;
+use execution_data::{BodyExecutionData, ExecutionData, WheelExecutionData};
 use executor::wasm_bindings::exports::robot::Configuration;
 
 use crate::{
@@ -21,14 +22,20 @@ use crate::{
 
 #[derive(Component)]
 pub struct BotVisualization {
-    config: Configuration,
-    bot_number: usize,
+    pub config: Configuration,
+    pub bot_number: usize,
 }
 
 const VIS_LAYER_Z_STEP: f32 = 0.5;
 
+impl BotVisualization {
+    pub fn build_transform(&self) -> Transform {
+        Transform::from_xyz(0.0, 0.0, self.bot_number as f32 * VIS_LAYER_Z_STEP)
+    }
+}
+
 pub fn spawn_bot_visualization(
-    mut commands: Commands,
+    commands: &mut Commands,
     track: &Track,
     data: ExecutionData,
     configuration: Configuration,
@@ -37,18 +44,14 @@ pub fn spawn_bot_visualization(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
 ) {
-    let vis_transform = Transform::from_xyz(0.0, 0.0, bot_number as f32 * VIS_LAYER_Z_STEP);
-    let vis = commands
-        .spawn((
-            BotVisualization {
-                config: configuration.clone(),
-                bot_number,
-            },
-            vis_transform,
-        ))
-        .id();
+    let vis_component = BotVisualization {
+        config: configuration.clone(),
+        bot_number,
+    };
+    let vis_transform = vis_component.build_transform();
+    let vis = commands.spawn((vis_component, vis_transform)).id();
     setup_track(
-        &mut commands,
+        commands,
         vis,
         EntityFeatures::Visualization,
         track,
@@ -56,21 +59,21 @@ pub fn spawn_bot_visualization(
         materials,
     );
     let bot = spawn_bot_body(
-        &mut commands,
+        commands,
         vis,
         &configuration,
         bot_assets,
         Some(data.body_data),
     );
     spawn_bot_wheel(
-        &mut commands,
+        commands,
         bot,
         &configuration,
         bot_assets,
         Some(data.left_wheel_data),
     );
     spawn_bot_wheel(
-        &mut commands,
+        commands,
         bot,
         &configuration,
         bot_assets,
@@ -78,9 +81,27 @@ pub fn spawn_bot_visualization(
     );
 }
 
-pub fn sync_visualizer_time(
-    vis_query: Query<(Entity, &BotVisualization)>,
-    runner_gui_state: Res<RunnerGuiState>,
+pub fn sync_bot_layers(layers: Query<(&BotVisualization, &mut Transform)>) {
+    for (vis, mut transform) in layers {
+        *transform = vis.build_transform();
+    }
+}
+
+pub fn sync_bot_body(
+    gui_state: Res<RunnerGuiState>,
+    data: Query<(&BodyExecutionData, &mut Transform)>,
 ) {
-    todo!()
+    for (data, mut transform) in data {
+        *transform = data.at_time_secs(gui_state.play_time_sec());
+    }
+}
+
+pub fn sync_bot_wheel(
+    gui_state: Res<RunnerGuiState>,
+    data: Query<(&WheelExecutionData, &mut Transform)>,
+) {
+    for (data, mut transform) in data {
+        let angle = data.at_time_secs(gui_state.play_time_sec());
+        transform.rotation = Quat::from_axis_angle(data.axis, angle);
+    }
 }
