@@ -2,7 +2,6 @@ use bevy::{
     asset::Assets,
     ecs::{
         component::Component,
-        entity::Entity,
         system::{Commands, Query, Res},
     },
     math::Quat,
@@ -71,6 +70,7 @@ pub fn spawn_bot_visualization(
         bot,
         &configuration,
         bot_assets,
+        crate::utils::Side::Left,
         Some(data.left_wheel_data),
     );
     spawn_bot_wheel(
@@ -78,6 +78,7 @@ pub fn spawn_bot_visualization(
         bot,
         &configuration,
         bot_assets,
+        crate::utils::Side::Right,
         Some(data.right_wheel_data),
     );
 }
