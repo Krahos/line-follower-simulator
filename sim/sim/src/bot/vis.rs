@@ -74,9 +74,21 @@ pub fn spawn_bot_wheel(
     assets: &BotAssets,
     data: Option<WheelExecutionData>,
 ) {
+    let transform = data
+        .as_ref()
+        .map(|data| {
+            let t = Transform::from_translation(
+                data.side.axis_direction() * configuration.width_axle / 2000.0,
+            );
+            println!("wheel transform {} {:?}", data.side, t);
+            t
+        })
+        .unwrap_or_default();
+
     let id = commands
         .spawn((
             ChildOf(parent),
+            transform,
             Mesh3d(assets.meshes.wheel.clone()),
             MeshMaterial3d(assets.materials.wheel.clone()),
         ))

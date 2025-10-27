@@ -54,12 +54,12 @@ impl AppWrapper {
             },
             left_wheel_data: WheelExecutionData {
                 period: res.left_wheel_data.period,
-                axis: res.left_wheel_data.axis,
+                side: res.left_wheel_data.side,
                 steps: res.left_wheel_data.steps.drain(..).collect(),
             },
             right_wheel_data: WheelExecutionData {
                 period: res.right_wheel_data.period,
-                axis: res.right_wheel_data.axis,
+                side: res.right_wheel_data.side,
                 steps: res.right_wheel_data.steps.drain(..).collect(),
             },
         }

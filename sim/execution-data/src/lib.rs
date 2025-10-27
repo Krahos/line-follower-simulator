@@ -1,11 +1,10 @@
 use bevy::{
     ecs::{component::Component, resource::Resource},
     math::Vec3,
-    reflect::List,
     transform::components::Transform,
 };
 
-#[derive(Clone, Component, Default)]
+#[derive(Clone, Component)]
 pub struct BodyExecutionData {
     pub period: u32,
     pub steps: Vec<Transform>,
@@ -32,20 +31,59 @@ impl BodyExecutionData {
     }
 }
 
-#[derive(Clone, Component, Default)]
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum WheelDataSide {
+    Left,
+    Right,
+}
+
+impl std::fmt::Display for WheelDataSide {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Left => write!(f, "L"),
+            Self::Right => write!(f, "R"),
+        }
+    }
+}
+
+impl WheelDataSide {
+    pub fn axis_rotation(&self) -> Vec3 {
+        match self {
+            Self::Left => Vec3::NEG_X,
+            Self::Right => Vec3::NEG_X,
+        }
+    }
+
+    pub fn axis_direction(&self) -> Vec3 {
+        match self {
+            Self::Left => Vec3::NEG_X,
+            Self::Right => Vec3::X,
+        }
+    }
+}
+
+#[derive(Clone, Component)]
 pub struct WheelExecutionData {
     pub period: u32,
-    pub axis: Vec3,
+    pub side: WheelDataSide,
     pub steps: Vec<f32>,
 }
 
 impl WheelExecutionData {
-    pub fn empty(period: u32, axis: Vec3) -> Self {
+    pub fn empty(period: u32, side: WheelDataSide) -> Self {
         Self {
             period,
-            axis,
+            side,
             steps: Vec::new(),
         }
+    }
+
+    pub fn axis_rotation(&self) -> Vec3 {
+        self.side.axis_rotation()
+    }
+
+    pub fn axis_direction(&self) -> Vec3 {
+        self.side.axis_direction()
     }
 
     pub fn at_time_secs(&self, time_secs: f32) -> f32 {
@@ -72,8 +110,8 @@ impl ExecutionData {
     pub fn empty(period: u32) -> Self {
         Self {
             body_data: BodyExecutionData::empty(period),
-            left_wheel_data: WheelExecutionData::empty(period, Vec3::NEG_X),
-            right_wheel_data: WheelExecutionData::empty(period, Vec3::X),
+            left_wheel_data: WheelExecutionData::empty(period, WheelDataSide::Left),
+            right_wheel_data: WheelExecutionData::empty(period, WheelDataSide::Right),
         }
     }
 }

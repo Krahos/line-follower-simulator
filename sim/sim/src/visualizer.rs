@@ -58,6 +58,7 @@ pub fn spawn_bot_visualization(
         meshes,
         materials,
     );
+
     let bot = spawn_bot_body(
         commands,
         vis,
@@ -102,6 +103,6 @@ pub fn sync_bot_wheel(
 ) {
     for (data, mut transform) in data {
         let angle = data.at_time_secs(gui_state.play_time_sec());
-        transform.rotation = Quat::from_axis_angle(data.axis, angle);
+        transform.rotation = Quat::from_axis_angle(data.axis_rotation(), angle);
     }
 }
