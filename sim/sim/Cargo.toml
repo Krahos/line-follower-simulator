@@ -12,7 +12,8 @@ execution-data = { path = "../execution-data" }
 executor = { path = "../executor" }
 bevy_rapier3d = { workspace = true }
 bevy = { workspace = true }
-bevy_panorbit_camera = { workspace = true }
+# bevy_panorbit_camera = { workspace = true }
+bevy_panorbit_camera = {path = "../bevy_panorbit_camera", features = ["bevy_egui"]}
 bevy_egui = { workspace = true }
 egui-file-dialog = { workspace = true }
 egui_material_icons = { workspace = true }

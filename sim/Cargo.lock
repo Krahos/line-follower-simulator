@@ -1003,11 +1003,10 @@ dependencies = [
 [[package]]
 name = "bevy_panorbit_camera"
 version = "0.28.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ad26f43e37bec9849277dcb37e1404aeed2714f4834199e140150397bffb094c"
 dependencies = [
  "bevy",
  "bevy_egui",
+ "float-cmp",
 ]
 
 [[package]]
@@ -2689,6 +2688,15 @@ checksum = "dc5a4e564e38c699f2880d3fda590bedc2e69f3f84cd48b457bd892ce61d0aa9"
 dependencies = [
  "crc32fast",
  "miniz_oxide",
+]
+
+[[package]]
+name = "float-cmp"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b09cf3155332e944990140d967ff5eceb70df778b34f77d8075db46e4704e6d8"
+dependencies = [
+ "num-traits",
 ]
 
 [[package]]
