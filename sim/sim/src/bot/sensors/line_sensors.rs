@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 
+use crate::bot::BotBodyMarker;
 use crate::track::{TRACK_HALF_WIDTH, TrackSegment};
 use crate::utils::{NormalRandom, point_to_new_origin};
 use execution_data::SensorsData;
@@ -111,6 +112,7 @@ pub struct LineSensor {}
 pub fn compute_sensor_readings(
     read_rapier_context: ReadRapierContext,
     sensors_query: Query<&GlobalTransform, With<LineSensor>>,
+    bot_body_query: Query<&GlobalTransform, With<BotBodyMarker>>,
     track_segments_query: Query<(&TrackSegment, &GlobalTransform)>,
     mut rng: ResMut<NormalRandom>,
     mut sensors_data: ResMut<SensorsData>,
@@ -147,5 +149,25 @@ pub fn compute_sensor_readings(
                 .noisy_value(line_reflection_attenuation(100.0, sensor_z), NOISE)
                 .clamp(0.0, 100.0);
         }
+    }
+
+    let bot_body_tf = bot_body_query.single().unwrap();
+    let bot_body_origin = bot_body_tf.translation();
+    let bot_body_dir = bot_body_tf.rotation().mul_vec3(Vec3::NEG_Z);
+    if let Some((entity, _)) = rapier_context.cast_ray_and_get_normal(
+        bot_body_origin,
+        bot_body_dir,
+        0.1,
+        true,
+        QueryFilter::default().predicate(&|entity| track_segments_query.get(entity).is_ok()),
+    ) {
+        // Bot body is over the track
+        sensors_data.is_out_of_track = false;
+        let (track_segment, _) = track_segments_query.get(entity).unwrap();
+        sensors_data.is_over_track_end = track_segment.is_end();
+    } else {
+        // Bot body is out of the track
+        sensors_data.is_out_of_track = true;
+        sensors_data.is_over_track_end = false;
     }
 }

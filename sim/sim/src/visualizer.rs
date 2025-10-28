@@ -9,7 +9,9 @@ use bevy::{
     render::mesh::Mesh,
     transform::components::Transform,
 };
-use execution_data::{BodyExecutionData, ExecutionData, WheelExecutionData};
+use execution_data::{
+    ActivityData, BodyExecutionData, BotFinalStatus, ExecutionData, WheelExecutionData,
+};
 use executor::wasm_bindings::exports::robot::Configuration;
 
 use crate::{
@@ -23,6 +25,8 @@ use crate::{
 pub struct BotVisualization {
     pub config: Configuration,
     pub bot_number: usize,
+    pub bot_activity: ActivityData,
+    pub bot_final_status: BotFinalStatus,
 }
 
 const VIS_LAYER_Z_STEP: f32 = 0.5;
@@ -46,6 +50,8 @@ pub fn spawn_bot_visualization(
     let root_component = BotVisualization {
         config: configuration.clone(),
         bot_number,
+        bot_activity: data.activity_data,
+        bot_final_status: data.activity_data.final_status(),
     };
     let root_transform = root_component.build_transform();
     let track_root = commands.spawn((root_component, root_transform)).id();

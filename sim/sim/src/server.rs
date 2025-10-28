@@ -10,11 +10,12 @@ pub fn start_server(
     port: u16,
     track: Track,
     period: u32,
+    start_time: u32,
     sender: std::sync::mpsc::Sender<wasmtime::Result<BotExecutionData>>,
 ) -> wasmtime::Result<()> {
     let server = tiny_http::Server::http(format!("{}:{}", address, port))
         .map_err(|err| wasmtime::Error::msg(err.to_string()))?;
-    std::thread::spawn(move || run_server(server, track, period, sender));
+    std::thread::spawn(move || run_server(server, track, period, start_time, sender));
     Ok(())
 }
 
@@ -22,6 +23,7 @@ fn run_server(
     server: tiny_http::Server,
     track: Track,
     period: u32,
+    start_time: u32,
     sender: std::sync::mpsc::Sender<wasmtime::Result<BotExecutionData>>,
 ) {
     for mut request in server.incoming_requests() {
@@ -35,7 +37,9 @@ fn run_server(
                         let result_sender = sender.clone();
                         std::thread::spawn(move || {
                             result_sender
-                                .send(run_bot_from_code(wasm_bytes, None, false, period, track))
+                                .send(run_bot_from_code(
+                                    wasm_bytes, None, false, period, start_time, track,
+                                ))
                                 .ok();
                         });
                         tiny_http::Response::from_string("Robot code received successfully")

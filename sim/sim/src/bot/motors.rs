@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
-use execution_data::{MotorDriversDutyCycles, PWM_MAX, PWM_MIN};
+use execution_data::{ExecutionData, MotorDriversDutyCycles, PWM_MAX, PWM_MIN};
 
 use crate::utils::{GetBySide, Side};
 
@@ -104,9 +104,14 @@ fn pwm_to_torque(
 
 fn apply_motors_pwm(
     pwm: Res<MotorDriversDutyCycles>,
+    data: Res<ExecutionData>,
     mut wheels_query: Query<(&Wheel, &Transform, &Velocity, &mut ExternalForce), Without<Motors>>,
     mut motors_query: Query<(&Motors, &Transform, &mut ExternalForce), Without<Wheel>>,
 ) {
+    if !data.activity_data.is_active_now() {
+        return;
+    }
+
     let mut body_torque = Vec3::ZERO;
 
     struct MotorsAxle {

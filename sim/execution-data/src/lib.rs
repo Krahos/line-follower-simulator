@@ -99,11 +99,175 @@ impl WheelExecutionData {
     }
 }
 
+#[derive(Clone, Copy)]
+pub struct ActivityData {
+    pub start_time_us: Option<u32>,
+    pub out_time_us: Option<u32>,
+    pub end_time_us: Option<u32>,
+}
+
+#[derive(Clone, Copy)]
+pub enum BotStatus {
+    Waiting { time_secs: f32 },
+    Racing { time_secs: f32 },
+    EndedAt { time_secs: f32 },
+    OutAt { time_secs: f32 },
+}
+
+impl BotStatus {
+    pub fn display_time_secs(&self) -> f32 {
+        match self {
+            BotStatus::Waiting { time_secs } => *time_secs,
+            BotStatus::Racing { time_secs } => *time_secs,
+            BotStatus::EndedAt { time_secs } => *time_secs,
+            BotStatus::OutAt { time_secs } => *time_secs,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq)]
+pub enum BotFinalStatus {
+    NotStarted,
+    NotEnded,
+    EndedAt { time_secs: f32 },
+    OutAt { time_secs: f32 },
+}
+
+impl BotFinalStatus {
+    pub fn end_time(&self) -> Option<f32> {
+        match self {
+            BotFinalStatus::NotStarted => None,
+            BotFinalStatus::NotEnded => None,
+            BotFinalStatus::EndedAt { time_secs } => Some(*time_secs),
+            BotFinalStatus::OutAt { time_secs } => Some(*time_secs),
+        }
+    }
+
+    fn kind_rank(&self) -> usize {
+        match self {
+            BotFinalStatus::NotStarted => 3,
+            BotFinalStatus::NotEnded => 2,
+            BotFinalStatus::EndedAt { .. } => 0,
+            BotFinalStatus::OutAt { .. } => 1,
+        }
+    }
+
+    fn kind_value(&self) -> f32 {
+        match self {
+            BotFinalStatus::NotStarted => 0.0,
+            BotFinalStatus::NotEnded => 0.0,
+            BotFinalStatus::EndedAt { time_secs } => *time_secs,
+            BotFinalStatus::OutAt { time_secs } => *time_secs,
+        }
+    }
+}
+
+impl std::cmp::Eq for BotFinalStatus {}
+
+impl std::cmp::PartialOrd for BotFinalStatus {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match self.kind_rank().cmp(&other.kind_rank()) {
+            std::cmp::Ordering::Equal => self.kind_value().partial_cmp(&other.kind_value()),
+            ord => Some(ord),
+        }
+    }
+}
+
+impl std::cmp::Ord for BotFinalStatus {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match self.kind_rank().cmp(&other.kind_rank()) {
+            std::cmp::Ordering::Equal => {
+                let self_value = self.kind_value();
+                let other_value = other.kind_value();
+                self_value.total_cmp(&other_value)
+            }
+            ord => ord,
+        }
+    }
+}
+
+impl ActivityData {
+    pub fn empty() -> Self {
+        Self {
+            start_time_us: None,
+            out_time_us: None,
+            end_time_us: None,
+        }
+    }
+
+    pub fn is_active_now(&self) -> bool {
+        self.start_time_us.is_none() && self.out_time_us.is_none() && self.end_time_us.is_none()
+    }
+
+    pub fn status_at_time(&self, time_secs: f32) -> BotStatus {
+        let time_us: u32 = (time_secs * 1_000_000.0) as u32;
+
+        let start_secs = match self.start_time_us {
+            Some(start) => {
+                if time_us < start {
+                    return BotStatus::Waiting { time_secs };
+                } else {
+                    start as f32 / 1_000_000.0
+                }
+            }
+            None => {
+                return BotStatus::Waiting { time_secs };
+            }
+        };
+
+        if let Some(end_us) = self.end_time_us {
+            if time_us > end_us {
+                let end_secs = end_us as f32 / 1_000_000.0;
+                return BotStatus::EndedAt {
+                    time_secs: end_secs - start_secs,
+                };
+            }
+        }
+
+        if let Some(out_us) = self.out_time_us {
+            if time_us > out_us {
+                let out_secs = out_us as f32 / 1_000_000.0;
+                return BotStatus::OutAt {
+                    time_secs: out_secs - start_secs,
+                };
+            }
+        }
+
+        BotStatus::Racing {
+            time_secs: time_secs - start_secs,
+        }
+    }
+
+    pub fn final_status(&self) -> BotFinalStatus {
+        let start_us = match self.start_time_us {
+            Some(start_us) => start_us,
+            None => return BotFinalStatus::NotStarted,
+        };
+
+        if let Some(ended_us) = self.end_time_us {
+            let racing_us = ended_us - start_us;
+            return BotFinalStatus::EndedAt {
+                time_secs: racing_us as f32 / 1_000_000.0,
+            };
+        }
+
+        if let Some(out_us) = self.out_time_us {
+            let racing_us = out_us - start_us;
+            return BotFinalStatus::OutAt {
+                time_secs: racing_us as f32 / 1_000_000.0,
+            };
+        }
+
+        BotFinalStatus::NotEnded
+    }
+}
+
 #[derive(Clone, Resource)]
 pub struct ExecutionData {
     pub body_data: BodyExecutionData,
     pub left_wheel_data: WheelExecutionData,
     pub right_wheel_data: WheelExecutionData,
+    pub activity_data: ActivityData,
 }
 
 impl ExecutionData {
@@ -112,6 +276,7 @@ impl ExecutionData {
             body_data: BodyExecutionData::empty(period),
             left_wheel_data: WheelExecutionData::empty(period, WheelDataSide::Left),
             right_wheel_data: WheelExecutionData::empty(period, WheelDataSide::Right),
+            activity_data: ActivityData::empty(),
         }
     }
 }
@@ -186,6 +351,8 @@ pub struct SensorsData {
     pub imu_fused: ImuFusedData,
     pub line_sensors: [f32; 16],
     pub bot_position: BotPosition,
+    pub is_out_of_track: bool,
+    pub is_over_track_end: bool,
 }
 
 pub trait SimulationStepper {

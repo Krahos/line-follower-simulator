@@ -35,9 +35,32 @@ impl AppWrapper {
         *res = dc;
     }
 
-    pub fn step(&mut self) {
+    pub fn step(&mut self, next_time_us: u32, start_time_us: u32) {
         self.app.update();
         self.sensors_data = *self.app.world().get_resource::<SensorsData>().unwrap();
+
+        // Get mutable ref to execution data
+        let mut execution_data = self
+            .app
+            .world_mut()
+            .get_resource_mut::<ExecutionData>()
+            .unwrap();
+
+        // Update activity data
+        let activity_data = &mut execution_data.activity_data;
+        if next_time_us >= start_time_us {
+            activity_data.start_time_us = Some(start_time_us);
+        }
+        if activity_data.end_time_us.is_none() {
+            if self.sensors_data.is_over_track_end {
+                activity_data.end_time_us = Some(next_time_us);
+            }
+        }
+        if activity_data.out_time_us.is_none() {
+            if self.sensors_data.is_out_of_track {
+                activity_data.out_time_us = Some(next_time_us);
+            }
+        }
     }
 
     pub fn get_execution_data(&mut self) -> ExecutionData {
@@ -62,29 +85,33 @@ impl AppWrapper {
                 side: res.right_wheel_data.side,
                 steps: res.right_wheel_data.steps.drain(..).collect(),
             },
+            activity_data: res.activity_data,
         }
+    }
+
+    pub fn is_active(&self) -> bool {
+        let execution_data = self.app.world().get_resource::<ExecutionData>().unwrap();
+        execution_data.activity_data.is_active_now()
     }
 }
 
 pub struct RunnerStepper {
     step_period_us: u32,
+    start_time_us: u32,
     app_wrapper: AppWrapper,
     current_step: usize,
     current_time_us: u32,
 }
 
 impl RunnerStepper {
-    pub fn new(app_wrapper: AppWrapper, step_period_us: u32) -> Self {
+    pub fn new(app_wrapper: AppWrapper, step_period_us: u32, start_time_us: u32) -> Self {
         Self {
             step_period_us,
+            start_time_us,
             app_wrapper,
             current_step: 0,
             current_time_us: 0,
         }
-    }
-
-    pub fn time_s(&self) -> f32 {
-        self.current_time_us as f32 / 1_000_000.0
     }
 }
 
@@ -94,7 +121,10 @@ impl execution_data::SimulationStepper for RunnerStepper {
     }
 
     fn step(&mut self) {
-        self.app_wrapper.step();
+        self.app_wrapper.step(
+            self.current_time_us + self.step_period_us,
+            self.start_time_us,
+        );
         self.current_step += 1;
         self.current_time_us += self.step_period_us;
     }
@@ -143,7 +173,7 @@ impl execution_data::SimulationStepper for RunnerStepper {
     }
 
     fn is_active(&self) -> bool {
-        true
+        self.app_wrapper.is_active()
     }
 }
 
@@ -158,11 +188,19 @@ pub fn run_bot_from_file(
     output: Option<String>,
     logs: bool,
     step_period_us: u32,
+    start_time_us: u32,
     track: Track,
 ) -> wasmtime::Result<BotExecutionData> {
     // Load the component from disk
     let wasm_bytes = std::fs::read(&input)?;
-    run_bot_from_code(wasm_bytes, output, logs, step_period_us, track)
+    run_bot_from_code(
+        wasm_bytes,
+        output,
+        logs,
+        step_period_us,
+        start_time_us,
+        track,
+    )
 }
 
 pub fn run_bot_from_code(
@@ -170,6 +208,7 @@ pub fn run_bot_from_code(
     output: Option<String>,
     logs: bool,
     step_period_us: u32,
+    start_time_us: u32,
     track: Track,
 ) -> wasmtime::Result<BotExecutionData> {
     // Get configuration
@@ -185,7 +224,7 @@ pub fn run_bot_from_code(
     )
     .set_runner(move |app| {
         let app_wrapper = AppWrapper::new(app);
-        let stepper = RunnerStepper::new(app_wrapper, step_period_us);
+        let stepper = RunnerStepper::new(app_wrapper, step_period_us, start_time_us);
 
         // Run robot logic
         let sim_result = wasm_executor::run_robot_simulation(

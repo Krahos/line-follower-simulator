@@ -14,7 +14,7 @@ use egui_material_icons::icons::{
     ICON_NORTH_WEST, ICON_PAUSE, ICON_PLAY_ARROW, ICON_SKIP_NEXT, ICON_SKIP_PREVIOUS, ICON_SOUTH,
     ICON_SOUTH_EAST, ICON_SOUTH_WEST, ICON_WEST, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
-use execution_data::{MotorDriversDutyCycles, PWM_MAX, SensorsData};
+use execution_data::{BotStatus, MotorDriversDutyCycles, PWM_MAX, SensorsData};
 use executor::wasmtime;
 
 use crate::{
@@ -58,6 +58,7 @@ pub fn runner_gui_setup(app: &mut App, visualizer_data: VisualizerData) {
         visualizer_data.output(),
         visualizer_data.logs(),
         visualizer_data.period(),
+        visualizer_data.start_time(),
         visualizer_data.first_bot(),
     );
 
@@ -66,10 +67,11 @@ pub fn runner_gui_setup(app: &mut App, visualizer_data: VisualizerData) {
             address,
             port,
             period,
+            start_time,
         } => {
             let sender = gui_state.get_bot_sender().clone();
             let track = app.world().resource::<Track>().clone();
-            start_server(address, port, track, period, sender)
+            start_server(address, port, track, period, start_time, sender)
                 .map_err(|err| {
                     eprintln!("error starting HTTP server: {}", err.to_string());
                     err
@@ -143,6 +145,7 @@ pub struct RunnerGuiState {
     output: Option<String>,
     logs: bool,
     period: u32,
+    start_time: u32,
     bot_with_pending_remove: Option<BotName>,
     error_message: Option<String>,
     help_open: bool,
@@ -153,6 +156,7 @@ impl RunnerGuiState {
         output: Option<String>,
         logs: bool,
         period: u32,
+        start_time: u32,
         first_bot: Option<BotExecutionData>,
     ) -> Self {
         let (sender, receiver) = std::sync::mpsc::channel();
@@ -172,6 +176,7 @@ impl RunnerGuiState {
             output,
             logs,
             period,
+            start_time,
             bot_with_pending_remove: None,
             error_message: None,
             help_open: false,
@@ -368,9 +373,10 @@ fn runner_gui_update(
                     let output = gui_state.output.clone();
                     let logs = gui_state.logs;
                     let period = gui_state.period;
+                    let start_time = gui_state.start_time;
                     let track = track.clone();
                     std::thread::spawn(move || {
-                        process_new_bot(path, output, logs, track, period, sender);
+                        process_new_bot(path, output, logs, track, period, start_time, sender);
                     });
                 }
 
@@ -412,7 +418,7 @@ fn runner_gui_update(
                 ui.separator();
 
                 let mut bots = bot_vis.iter_mut().collect::<Vec<_>>();
-                bots.sort_by_key(|bot| bot.bot_number);
+                bots.sort_by_key(|bot| bot.bot_final_status);
                 for (index, bot) in bots.iter_mut().enumerate() {
                     bot.bot_number = index;
                 }
@@ -433,8 +439,7 @@ fn runner_gui_update(
                                 bot.config.color_secondary.g,
                                 bot.config.color_secondary.b,
                             ),
-                            gui_state.play_time_sec,
-                            BotStatus::Running,
+                            bot.bot_activity.status_at_time(gui_state.play_time_sec),
                             gui_state.base_text_size,
                         ) {
                             gui_state.as_mut().bot_with_pending_remove = Some(BotName {
@@ -808,12 +813,15 @@ fn process_new_bot(
     logs: bool,
     track: Track,
     period: u32,
+    start_time: u32,
     sender: std::sync::mpsc::Sender<wasmtime::Result<BotExecutionData>>,
 ) {
     let input = path.display().to_string();
     std::thread::spawn(move || {
         sender
-            .send(run_bot_from_file(input, output, logs, period, track))
+            .send(run_bot_from_file(
+                input, output, logs, period, start_time, track,
+            ))
             .ok();
     });
 }
@@ -953,20 +961,23 @@ fn bot_name(ui: &mut Ui, name: &str, c1: Color32, c2: Color32, base_text_size: f
         .clicked()
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum BotStatus {
-    Running,
-    Ended,
-    Out,
+trait BotstatusExt {
+    fn color(&self) -> Color32;
+    fn timer(&self) -> f32;
 }
 
-impl BotStatus {
-    pub fn color(&self) -> Color32 {
+impl BotstatusExt for BotStatus {
+    fn color(&self) -> Color32 {
         match self {
-            BotStatus::Running => Color32::WHITE,
-            BotStatus::Ended => Color32::GREEN,
-            BotStatus::Out => Color32::RED,
+            BotStatus::Waiting { .. } => Color32::YELLOW,
+            BotStatus::Racing { .. } => Color32::GREEN,
+            BotStatus::EndedAt { .. } => Color32::GREEN,
+            BotStatus::OutAt { .. } => Color32::RED,
         }
+    }
+
+    fn timer(&self) -> f32 {
+        self.display_time_secs()
     }
 }
 
@@ -975,7 +986,6 @@ fn bot_status(
     name: &str,
     c1: Color32,
     c2: Color32,
-    time_sec: f32,
     status: BotStatus,
     base_text_size: f32,
 ) -> bool {
@@ -985,7 +995,7 @@ fn bot_status(
 
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             ui.label(
-                egui::RichText::new(format!("{:.2}", time_sec))
+                egui::RichText::new(format!("{:.2}", status.timer()))
                     .color(status.color())
                     .strong()
                     .size(base_text_size * 3.0),

@@ -324,6 +324,12 @@ pub enum TrackSegment {
 }
 
 impl TrackSegment {
+    pub fn is_end(&self) -> bool {
+        *self == TrackSegment::End
+    }
+}
+
+impl TrackSegment {
     pub fn start() -> Self {
         Self::Start
     }

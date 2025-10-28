@@ -26,12 +26,14 @@ pub enum VisualizerData {
         address: String,
         port: u16,
         period: u32,
+        start_time: u32,
     },
     Runner {
         bot: BotExecutionData,
         output: String,
         logs: bool,
         period: u32,
+        start_time: u32,
     },
 }
 
@@ -54,6 +56,13 @@ impl VisualizerData {
         match self {
             VisualizerData::Server { period, .. } => *period,
             VisualizerData::Runner { period, .. } => *period,
+        }
+    }
+
+    pub fn start_time(&self) -> u32 {
+        match self {
+            VisualizerData::Server { start_time, .. } => *start_time,
+            VisualizerData::Runner { start_time, .. } => *start_time,
         }
     }
 

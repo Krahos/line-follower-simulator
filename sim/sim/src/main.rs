@@ -46,6 +46,9 @@ enum Command {
         /// Simulation step period in us
         #[clap(long, short, default_value = "500")]
         period: u32,
+        /// Racing start time in us
+        #[clap(long, short, default_value = "1000000")]
+        start_time: u32,
         /// CLI only (run headless, without graphical visualizer)
         #[clap(long, short)]
         cli: bool,
@@ -76,6 +79,9 @@ enum Command {
         /// Simulation step period in us
         #[clap(long, short, default_value = "500")]
         period: u32,
+        /// Racing start time in us
+        #[clap(long, short, default_value = "1000000")]
+        start_time: u32,
     },
 }
 
@@ -102,6 +108,7 @@ fn main() -> executor::wasmtime::Result<()> {
             output,
             logs,
             period,
+            start_time,
             cli,
         } => {
             println!(
@@ -109,8 +116,14 @@ fn main() -> executor::wasmtime::Result<()> {
                 input, output, logs
             );
 
-            let bot_execution_data =
-                run_bot_from_file(input, Some(output.clone()), logs, period, track.clone())?;
+            let bot_execution_data = run_bot_from_file(
+                input,
+                Some(output.clone()),
+                logs,
+                period,
+                start_time,
+                track.clone(),
+            )?;
             println!(
                 "data has {} frames",
                 bot_execution_data.data.body_data.steps.len()
@@ -123,6 +136,7 @@ fn main() -> executor::wasmtime::Result<()> {
                         output,
                         logs,
                         period,
+                        start_time,
                     }),
                     track,
                     period,
@@ -166,6 +180,7 @@ fn main() -> executor::wasmtime::Result<()> {
             address,
             port,
             period,
+            start_time,
         } => {
             println!("Starting server...");
             create_app(
@@ -173,6 +188,7 @@ fn main() -> executor::wasmtime::Result<()> {
                     address,
                     port,
                     period,
+                    start_time,
                 }),
                 track,
                 period,
