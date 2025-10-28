@@ -218,10 +218,34 @@ pub fn spawn_bot_body(
         Transform::from_scale(Vec3::new(sensors_width, SENSOR_LENGHT, sensors_thickness))
             .with_translation(Vec3::new(
                 0.0,
-                configuration.length_front / 1000.0 - SENSOR_LENGHT / 2.0,
+                configuration.length_front / 1000.0,
                 sensors_z,
             )),
     ));
+
+    // sensor chips
+    for i in (0..16).into_iter().map(|i| i as f32 - 7.5) {
+        commands.spawn((
+            ChildOf(id),
+            Mesh3d(assets.meshes.sphere.clone()),
+            MeshMaterial3d(assets.materials.black.clone()),
+            Transform::from_scale(Vec3::ONE * SENSOR_CHIP_D).with_translation(Vec3::new(
+                i * configuration.front_sensors_spacing / 1000.0,
+                configuration.length_front / 1000.0,
+                sensors_z - sensors_thickness / 2.0,
+            )),
+        ));
+        commands.spawn((
+            ChildOf(id),
+            Mesh3d(assets.meshes.sphere.clone()),
+            MeshMaterial3d(assets.materials.black.clone()),
+            Transform::from_scale(Vec3::ONE * SENSOR_CHIP_D).with_translation(Vec3::new(
+                i * configuration.front_sensors_spacing / 1000.0,
+                configuration.length_front / 1000.0,
+                sensors_z + sensors_thickness / 2.0,
+            )),
+        ));
+    }
 
     // sensor link
     for i in [-1.0, 1.0] {
@@ -231,16 +255,17 @@ pub fn spawn_bot_body(
             MeshMaterial3d(color_secondary_material.clone()),
             Transform::from_scale(Vec3::new(
                 SENSOR_LINK_D,
-                configuration.length_front / 1000.0 - SENSOR_LENGHT / 2.0,
+                configuration.length_front / 1000.0,
                 SENSOR_LINK_D,
             ))
             .with_translation(Vec3::new(
                 i * sensor_link_x,
-                (configuration.length_front / 1000.0 - SENSOR_LENGHT / 2.0) / 2.0,
+                configuration.length_front / 2000.0,
                 sensors_z,
             )),
         ));
     }
+
     // front support
     for i in [-1.0, 1.0] {
         commands.spawn((
@@ -274,20 +299,6 @@ pub fn spawn_bot_body(
                     (support_height + FRONT_SUPPORT_D - wheel_diameter) / 2.0,
                 ))
                 .with_rotation(Quat::from_rotation_x(FRAC_PI_2)),
-        ));
-    }
-
-    // sensor chips
-    for i in (0..16).into_iter().map(|i| i as f32 - 7.5) {
-        commands.spawn((
-            ChildOf(id),
-            Mesh3d(assets.meshes.sphere.clone()),
-            MeshMaterial3d(assets.materials.black.clone()),
-            Transform::from_scale(Vec3::ONE * SENSOR_CHIP_D).with_translation(Vec3::new(
-                i * configuration.front_sensors_spacing / 1000.0,
-                configuration.length_front / 1000.0,
-                sensors_z - sensors_thickness / 2.0,
-            )),
         ));
     }
 
