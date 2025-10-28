@@ -612,7 +612,6 @@ pub fn setup_track(
     track_root: Entity,
     features: EntityFeatures,
     track: &Track,
-    is_bottom: bool,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
 ) {
@@ -693,7 +692,6 @@ impl Plugin for TrackPlugin {
                     track_root,
                     features,
                     &track,
-                    true,
                     &mut meshes,
                     &mut materials,
                 )

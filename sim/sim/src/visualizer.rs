@@ -17,7 +17,7 @@ use executor::wasm_bindings::exports::robot::Configuration;
 use crate::{
     bot::vis::{BotAssets, spawn_bot_body, spawn_bot_wheel},
     track::{Track, setup_track},
-    ui::RunnerGuiState,
+    ui_runner::RunnerGuiState,
     utils::EntityFeatures,
 };
 
@@ -61,7 +61,6 @@ pub fn spawn_bot_visualization(
         track_root,
         EntityFeatures::Visualization,
         track,
-        false,
         meshes,
         materials,
     );

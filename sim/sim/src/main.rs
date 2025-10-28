@@ -17,6 +17,8 @@ mod server;
 mod track;
 mod track_selection;
 mod ui;
+mod ui_runner;
+mod ui_test;
 mod utils;
 mod visualizer;
 
