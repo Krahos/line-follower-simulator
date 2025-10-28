@@ -475,7 +475,9 @@ impl DeviceValueRaw {
         sensor_values
             .iter()
             .enumerate()
-            .fold(Self::zero(), |v, (i, s)| v.with_u8(i, (s * 255.0) as u8))
+            .fold(Self::zero(), |v, (i, s)| {
+                v.with_u8(i, (s * 255.0 / 100.0) as u8)
+            })
     }
 
     pub fn from_motor_angles(angles: MotorAngles) -> Self {
