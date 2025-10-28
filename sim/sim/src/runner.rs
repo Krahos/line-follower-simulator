@@ -231,7 +231,7 @@ pub fn run_bot_from_code(
         app_builder::AppType::Simulator(config.clone()),
         track,
         step_period_us,
-    )
+    )?
     .set_runner(move |app| {
         let app_wrapper = AppWrapper::new(app);
         let stepper = RunnerStepper::new(app_wrapper, step_period_us, start_time_us);

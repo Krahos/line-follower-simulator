@@ -8,6 +8,7 @@ use bevy::scene::ScenePlugin;
 use bevy_rapier3d::prelude::*;
 use bevy_rapier3d::rapier::prelude::IntegrationParameters;
 use executor::wasm_bindings::exports::robot::Configuration;
+use executor::wasmtime;
 
 #[derive(Resource)]
 pub struct BotConfigWrapper {
@@ -166,7 +167,13 @@ impl Plugin for RapierPhysicsSetupPlugin {
     }
 }
 
-pub fn create_app(app_type: AppType, track: Track, step_period_us: u32) -> App {
+pub fn create_app(app_type: AppType, track: Track, step_period_us: u32) -> wasmtime::Result<App> {
+    if step_period_us < 100 || step_period_us > 1000 {
+        return Err(wasmtime::Error::msg(format!(
+            "invalid period {}: step period must be between 100us and 1000us",
+            step_period_us
+        )));
+    }
     let mut app = App::new();
 
     let step_hz = 1_000_000.0 / (step_period_us as f64);
@@ -195,5 +202,5 @@ pub fn create_app(app_type: AppType, track: Track, step_period_us: u32) -> App {
 
     app.add_plugins(GuiSetupPlugin::new(app_type));
 
-    app
+    Ok(app)
 }

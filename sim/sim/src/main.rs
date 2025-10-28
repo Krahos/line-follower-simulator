@@ -1,13 +1,11 @@
 use app_builder::VisualizerData;
-use bevy::{math::Vec2, text::cosmic_text::Angle};
 use clap::{self, ArgEnum, Parser, Subcommand, ValueEnum};
 use executor::{
     wasm_bindings::exports::robot::{Color, Configuration},
     wasmtime,
 };
 use runner::{get_bot_config_from_file, run_bot_from_file};
-use track::{SegmentTransform, Track, TrackSegment};
-use utils::Side;
+use track_selection::build_track;
 
 use crate::app_builder::create_app;
 
@@ -17,6 +15,7 @@ mod data;
 mod runner;
 mod server;
 mod track;
+mod track_selection;
 mod ui;
 mod utils;
 mod visualizer;
@@ -49,7 +48,7 @@ impl std::str::FromStr for TrackId {
 #[clap(version = "1.0")]
 #[clap(about = "Line Follower Simulator", long_about = None)]
 struct Args {
-    /// Simulation step period in us
+    /// Simulation step period in us (100 to 1000)
     #[clap(long, short, default_value = "500")]
     period: u32,
     /// Track used in the simulation
@@ -103,21 +102,8 @@ enum Command {
 fn main() -> executor::wasmtime::Result<()> {
     let args = Args::parse();
 
-    let track = Track::new(
-        Vec2::new(5.0, 6.5),
-        SegmentTransform::new(Vec2::new(0.5, -2.3), Angle::from_degrees(0.0)),
-        vec![
-            TrackSegment::start(),
-            TrackSegment::straight(2.0),
-            TrackSegment::ninety_deg_turn(0.5, Side::Right),
-            TrackSegment::cyrcle_turn(1.0, Angle::from_degrees(120.0), Side::Left),
-            TrackSegment::ninety_deg_turn(1.0, Side::Left),
-            TrackSegment::cyrcle_turn(2.0, Angle::from_degrees(60.0), Side::Right),
-            TrackSegment::end(),
-        ],
-    );
-
     let period = args.period;
+    let track = build_track(args.track);
 
     match args.cmd {
         Command::Run {
@@ -156,7 +142,7 @@ fn main() -> executor::wasmtime::Result<()> {
                     }),
                     track,
                     period,
-                )
+                )?
                 .run();
             }
         }
@@ -191,7 +177,7 @@ fn main() -> executor::wasmtime::Result<()> {
                 front_sensors_height: 4.0,
             });
 
-            create_app(app_builder::AppType::Test(bot_config), track, period).run();
+            create_app(app_builder::AppType::Test(bot_config), track, period)?.run();
         }
         Command::Serve {
             address,
@@ -208,7 +194,7 @@ fn main() -> executor::wasmtime::Result<()> {
                 }),
                 track,
                 period,
-            )
+            )?
             .run();
         }
     }
