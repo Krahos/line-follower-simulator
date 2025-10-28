@@ -1,8 +1,5 @@
 use app_builder::VisualizerData;
-use bevy::{
-    math::{Vec2, VectorSpace},
-    text::cosmic_text::Angle,
-};
+use bevy::{math::Vec2, text::cosmic_text::Angle};
 use clap::{self, Parser, Subcommand};
 use executor::wasm_bindings::exports::robot::{Color, Configuration};
 use runner::run_bot_from_file;

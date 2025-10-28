@@ -62,7 +62,7 @@ impl Plugin for BotPlugin {
             app.add_plugins((
                 MotorsModelPlugin,
                 SensorsModelPlugin,
-                StoreExecDataPlugin::new(self.step_period_us),
+                StoreExecDataPlugin::new(self.step_period_us, self.features.has_visualization()),
             ));
             if self.features.has_visualization() {
                 let configuration = self

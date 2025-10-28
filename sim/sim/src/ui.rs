@@ -1,4 +1,4 @@
-use std::{f32::consts::PI, ops::Mul, path::PathBuf, sync::Mutex};
+use std::{f32::consts::PI, path::PathBuf, sync::Mutex};
 
 use bevy::{prelude::*, render::view::RenderLayers};
 use bevy_egui::{
@@ -7,7 +7,7 @@ use bevy_egui::{
 };
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 use bevy_rapier3d::render::RapierDebugRenderPlugin;
-use egui_file_dialog::{DialogState, FileDialog};
+use egui_file_dialog::FileDialog;
 use egui_material_icons::icons::{
     ICON_ADD, ICON_CANCEL, ICON_CENTER_FOCUS_WEAK, ICON_CHECK, ICON_DELETE, ICON_EAST,
     ICON_EXIT_TO_APP, ICON_FAST_FORWARD, ICON_FAST_REWIND, ICON_HELP, ICON_NORTH, ICON_NORTH_EAST,
@@ -233,7 +233,7 @@ fn runner_gui_update(
     mut gui_state: ResMut<RunnerGuiState>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut exit: EventWriter<AppExit>,
-    mut camera: Query<(&mut PanOrbitCamera, &mut Transform)>,
+    mut camera: Query<(&mut PanOrbitCamera, &Transform)>,
     mut bot_vis: Query<&mut BotVisualization>,
     track: Res<Track>,
     time: Res<Time>,
@@ -242,7 +242,7 @@ fn runner_gui_update(
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) -> Result {
     let ctx = contexts.ctx_mut()?;
-    let (mut po_camera, mut po_transform) = camera.single_mut()?;
+    let (mut po_camera, po_transform) = camera.single_mut()?;
 
     if gui_state.play_active {
         gui_state.play_time_sec += time.delta_secs();
@@ -400,12 +400,7 @@ fn runner_gui_update(
         .default_width(cb_size * 3.0)
         .show_separator_line(false)
         .show(ctx, |ui| {
-            camera_buttons(
-                ui,
-                gui_state.base_text_size,
-                po_camera.as_mut(),
-                po_transform.as_mut(),
-            );
+            camera_buttons(ui, gui_state.base_text_size, po_camera.as_mut());
         });
 
     egui::SidePanel::right("right_panel")
@@ -496,10 +491,10 @@ fn test_gui_update(
     mut pwm: ResMut<MotorDriversDutyCycles>,
     sensors: Res<SensorsData>,
     time: Res<Time>,
-    mut camera: Query<(&mut PanOrbitCamera, &mut Transform)>,
+    mut camera: Query<(&mut PanOrbitCamera, &Transform)>,
 ) -> Result {
     let ctx = contexts.ctx_mut()?;
-    let (mut po_camera, mut po_transform) = camera.single_mut()?;
+    let (mut po_camera, po_transform) = camera.single_mut()?;
 
     egui::TopBottomPanel::bottom("bottom_panel")
         .resizable(false)
@@ -549,12 +544,7 @@ fn test_gui_update(
         .default_width(cb_size * 3.0)
         .show_separator_line(false)
         .show(ctx, |ui| {
-            camera_buttons(
-                ui,
-                gui_state.base_text_size,
-                po_camera.as_mut(),
-                po_transform.as_mut(),
-            );
+            camera_buttons(ui, gui_state.base_text_size, po_camera.as_mut());
         });
 
     egui::SidePanel::right("right_panel")
@@ -762,11 +752,7 @@ impl CameraQuadrant {
     }
 }
 
-fn reset_camera(
-    po_camera: &mut PanOrbitCamera,
-    po_transform: &mut Transform,
-    quadrant: CameraQuadrant,
-) {
+fn reset_camera(po_camera: &mut PanOrbitCamera, quadrant: CameraQuadrant) {
     po_camera.target_focus = Vec3::ZERO;
     po_camera.target_yaw = quadrant.yaw();
     po_camera.target_pitch = quadrant.pitch();
@@ -774,12 +760,7 @@ fn reset_camera(
     po_camera.force_update;
 }
 
-fn camera_buttons(
-    ui: &mut Ui,
-    base_text_size: f32,
-    po_camera: &mut PanOrbitCamera,
-    po_transform: &mut Transform,
-) {
+fn camera_buttons(ui: &mut Ui, base_text_size: f32, po_camera: &mut PanOrbitCamera) {
     let cb_size = base_text_size * 3.0;
     ui.vertical_centered(|ui| {
         rl(ui, "Camera views", base_text_size);
@@ -787,19 +768,19 @@ fn camera_buttons(
         egui::Grid::new("camera_controls").show(ui, |ui| {
             for q in [CameraQuadrant::NW, CameraQuadrant::N, CameraQuadrant::NE] {
                 if icon_button(ui, q.icon(), cb_size).clicked() {
-                    reset_camera(po_camera, po_transform, q);
+                    reset_camera(po_camera, q);
                 }
             }
             ui.end_row();
             for q in [CameraQuadrant::W, CameraQuadrant::C, CameraQuadrant::E] {
                 if icon_button(ui, q.icon(), cb_size).clicked() {
-                    reset_camera(po_camera, po_transform, q);
+                    reset_camera(po_camera, q);
                 }
             }
             ui.end_row();
             for q in [CameraQuadrant::SW, CameraQuadrant::S, CameraQuadrant::SE] {
                 if icon_button(ui, q.icon(), cb_size).clicked() {
-                    reset_camera(po_camera, po_transform, q);
+                    reset_camera(po_camera, q);
                 }
             }
             ui.end_row();

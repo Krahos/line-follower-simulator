@@ -16,22 +16,29 @@ fn store_data(
 
 pub struct StoreExecDataPlugin {
     step_period_us: u32,
+    force_initially_started: bool,
 }
 
 impl StoreExecDataPlugin {
-    pub fn new(step_period_us: u32) -> Self {
-        Self { step_period_us }
+    pub fn new(step_period_us: u32, force_initially_started: bool) -> Self {
+        Self {
+            step_period_us,
+            force_initially_started,
+        }
     }
 }
 
 impl Plugin for StoreExecDataPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(ExecutionData::empty(self.step_period_us))
-            .add_systems(
-                RunFixedMainLoop,
-                (store_data)
-                    .chain()
-                    .in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
-            );
+        app.insert_resource(ExecutionData::empty(
+            self.step_period_us,
+            self.force_initially_started,
+        ))
+        .add_systems(
+            RunFixedMainLoop,
+            (store_data)
+                .chain()
+                .in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
+        );
     }
 }

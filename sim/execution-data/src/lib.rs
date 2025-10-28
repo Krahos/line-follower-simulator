@@ -187,9 +187,13 @@ impl std::cmp::Ord for BotFinalStatus {
 }
 
 impl ActivityData {
-    pub fn empty() -> Self {
+    pub fn empty(force_initially_started: bool) -> Self {
         Self {
-            start_time_us: None,
+            start_time_us: if force_initially_started {
+                Some(0)
+            } else {
+                None
+            },
             out_time_us: None,
             end_time_us: None,
         }
@@ -279,12 +283,12 @@ pub struct ExecutionData {
 }
 
 impl ExecutionData {
-    pub fn empty(period: u32) -> Self {
+    pub fn empty(period: u32, force_initially_started: bool) -> Self {
         Self {
             body_data: BodyExecutionData::empty(period),
             left_wheel_data: WheelExecutionData::empty(period, WheelDataSide::Left),
             right_wheel_data: WheelExecutionData::empty(period, WheelDataSide::Right),
-            activity_data: ActivityData::empty(),
+            activity_data: ActivityData::empty(force_initially_started),
         }
     }
 }
