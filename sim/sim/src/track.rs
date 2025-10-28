@@ -114,13 +114,13 @@ pub fn arc_mesh(radius: f32, width: f32, angle: f32, side: Side) -> Mesh {
 
     use bevy::render::mesh::{Indices, PrimitiveTopology};
 
-    let angle = angle.abs() * side.sign();
+    let angle = angle.abs();
     let segments: usize =
-        ((TRACK_CIRCLE_SEGMENTS_PER_PI as f32 * angle.abs() / PI).round() as usize).max(1);
+        ((TRACK_CIRCLE_SEGMENTS_PER_PI as f32 * angle / PI).round() as usize).max(1);
     let delta = angle / segments as f32;
     let offset = match side {
         Side::Left => 0.0,
-        Side::Right => PI,
+        Side::Right => PI - angle,
     };
 
     let r_in = radius - width / 2.0;
@@ -422,7 +422,7 @@ impl TrackSegment {
             }
             TrackSegment::CyrcleTurn(data) => arc_mesh(
                 data.radius,
-                TRACK_HALF_WIDTH * 2.0,
+                LINE_HALF_WIDTH * 2.0,
                 data.angle.to_radians(),
                 data.side,
             ),
