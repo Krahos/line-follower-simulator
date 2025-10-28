@@ -452,6 +452,13 @@ fn runner_gui_update(
             }
         });
 
+    keyboard_camera_control(
+        &mut po_camera,
+        &po_transform,
+        &keyboard_input,
+        time.delta_secs(),
+    );
+
     Ok(())
 }
 
@@ -565,61 +572,18 @@ fn test_gui_update(
             });
         });
 
-    // Handle motor control
-    let up = keyboard_input.any_pressed([KeyCode::KeyW, KeyCode::ArrowUp]);
-    let down = keyboard_input.any_pressed([KeyCode::KeyS, KeyCode::ArrowDown]);
-    let left = keyboard_input.any_pressed([KeyCode::KeyA, KeyCode::ArrowLeft]);
-    let right = keyboard_input.any_pressed([KeyCode::KeyD, KeyCode::ArrowRight]);
-    let shift = keyboard_input.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
-    let ctrl = keyboard_input.any_pressed([KeyCode::ControlLeft, KeyCode::ControlRight]);
+    // Handle motor control if keyboard_camera_control returns false
+    if !keyboard_camera_control(
+        &mut po_camera,
+        &po_transform,
+        &keyboard_input,
+        time.delta_secs(),
+    ) {
+        let up = keyboard_input.any_pressed([KeyCode::KeyW, KeyCode::ArrowUp]);
+        let down = keyboard_input.any_pressed([KeyCode::KeyS, KeyCode::ArrowDown]);
+        let left = keyboard_input.any_pressed([KeyCode::KeyA, KeyCode::ArrowLeft]);
+        let right = keyboard_input.any_pressed([KeyCode::KeyD, KeyCode::ArrowRight]);
 
-    let t_delta = time.delta_secs();
-    const ROT_SPEED: f32 = PI / 2.0; // rad/s
-    const PAN_SPEED: f32 = 1.0; // m/s
-    if shift && ctrl {
-        if up {
-            po_camera.target_focus.z += PAN_SPEED * t_delta;
-        } else if down {
-            po_camera.target_focus.z -= PAN_SPEED * t_delta;
-        }
-    } else if shift {
-        let yaw = if right {
-            ROT_SPEED * t_delta
-        } else if left {
-            -ROT_SPEED * t_delta
-        } else {
-            0.0
-        };
-        let pitch = if up {
-            ROT_SPEED * t_delta
-        } else if down {
-            -ROT_SPEED * t_delta
-        } else {
-            0.0
-        };
-        po_camera.target_yaw += yaw;
-        po_camera.target_pitch += pitch;
-    } else if ctrl {
-        let yaw = Quat::from_rotation_z(po_camera.target_yaw);
-        let fwd_dir = yaw.mul_vec3(Vec3::Y);
-        let side_dir = yaw.mul_vec3(Vec3::X);
-        let fwd_speed = if up {
-            PAN_SPEED
-        } else if down {
-            -PAN_SPEED
-        } else {
-            0.0
-        };
-        let side_speed = if left {
-            PAN_SPEED
-        } else if right {
-            -PAN_SPEED
-        } else {
-            0.0
-        };
-        po_camera.target_focus +=
-            (fwd_speed * t_delta * fwd_dir) + (side_speed * t_delta * side_dir);
-    } else {
         let forward = if up {
             1
         } else if down {
@@ -642,6 +606,96 @@ fn test_gui_update(
     }
 
     Ok(())
+}
+
+fn keyboard_camera_control(
+    po_camera: &mut PanOrbitCamera,
+    po_transform: &Transform,
+    keys: &ButtonInput<KeyCode>,
+    t_delta: f32,
+) -> bool {
+    let up = keys.any_pressed([KeyCode::KeyW, KeyCode::ArrowUp]);
+    let down = keys.any_pressed([KeyCode::KeyS, KeyCode::ArrowDown]);
+    let left = keys.any_pressed([KeyCode::KeyA, KeyCode::ArrowLeft]);
+    let right = keys.any_pressed([KeyCode::KeyD, KeyCode::ArrowRight]);
+    let shift = keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
+    let ctrl = keys.any_pressed([KeyCode::ControlLeft, KeyCode::ControlRight]);
+    let alt = keys.any_pressed([KeyCode::AltLeft, KeyCode::AltRight]);
+
+    const ROT_SPEED: f32 = PI / 2.0; // rad/s
+    const PAN_SPEED: f32 = 1.0; // m/s
+    if shift && ctrl {
+        // pan on absolute Z
+        if up {
+            po_camera.target_focus.z += PAN_SPEED * t_delta;
+        } else if down {
+            po_camera.target_focus.z -= PAN_SPEED * t_delta;
+        }
+    } else if ctrl {
+        // orbit around target point
+        let yaw = if right {
+            -ROT_SPEED * t_delta
+        } else if left {
+            ROT_SPEED * t_delta
+        } else {
+            0.0
+        };
+        let pitch = if up {
+            ROT_SPEED * t_delta
+        } else if down {
+            -ROT_SPEED * t_delta
+        } else {
+            0.0
+        };
+        po_camera.target_yaw += yaw;
+        po_camera.target_pitch += pitch;
+    } else if shift {
+        // move along local side and forward axes (so forward is a "zoom")
+        let side_dir = po_transform.rotation.mul_vec3(Vec3::NEG_X);
+        let fwd_speed = if up {
+            PAN_SPEED * 2.5
+        } else if down {
+            -PAN_SPEED * 2.5
+        } else {
+            0.0
+        };
+        let side_speed = if left {
+            PAN_SPEED
+        } else if right {
+            -PAN_SPEED
+        } else {
+            0.0
+        };
+        po_camera.target_focus += side_speed * t_delta * side_dir;
+        po_camera.target_radius -= fwd_speed * t_delta;
+        po_camera.target_radius = po_camera.target_radius.max(0.1);
+    } else if alt {
+        // move along local side and "flat" forward axes
+        let fwd_dir = po_transform
+            .rotation
+            .mul_vec3(Vec3::NEG_Z)
+            .with_z(0.0)
+            .normalize();
+        let side_dir = po_transform.rotation.mul_vec3(Vec3::NEG_X);
+        let fwd_speed = if up {
+            PAN_SPEED
+        } else if down {
+            -PAN_SPEED
+        } else {
+            0.0
+        };
+        let side_speed = if left {
+            PAN_SPEED
+        } else if right {
+            -PAN_SPEED
+        } else {
+            0.0
+        };
+        po_camera.target_focus += side_speed * t_delta * side_dir;
+        po_camera.target_focus += fwd_speed * t_delta * fwd_dir;
+    }
+
+    shift || ctrl || alt
 }
 
 fn rl(ui: &mut Ui, text: impl Into<String>, size: f32) -> Response {

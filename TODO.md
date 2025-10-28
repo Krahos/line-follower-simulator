@@ -11,7 +11,7 @@
 [❌] share track meshes (cloning components when spawning track)
 [❌] share track materials (like bot ones: put them in the same resource)
 [✔] fix camera panning
-[❌] camera keyboard controls
+[✔] camera keyboard controls
 [✔] VCR keyboard controls
 [❌] tune physics (torque, friction, masses...)
 [✔] implement error dialog
