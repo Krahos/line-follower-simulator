@@ -219,7 +219,7 @@ impl ActivityData {
             if time_us > end_us {
                 let end_secs = end_us as f32 / 1_000_000.0;
                 return BotStatus::EndedAt {
-                    time_secs: end_secs - start_secs,
+                    time_secs: (end_secs - start_secs).max(0.0),
                 };
             }
         }
@@ -228,7 +228,7 @@ impl ActivityData {
             if time_us > out_us {
                 let out_secs = out_us as f32 / 1_000_000.0;
                 return BotStatus::OutAt {
-                    time_secs: out_secs - start_secs,
+                    time_secs: (out_secs - start_secs).max(0.0),
                 };
             }
         }
@@ -245,14 +245,22 @@ impl ActivityData {
         };
 
         if let Some(ended_us) = self.end_time_us {
-            let racing_us = ended_us - start_us;
+            let racing_us = if ended_us > start_us {
+                ended_us - start_us
+            } else {
+                0
+            };
             return BotFinalStatus::EndedAt {
                 time_secs: racing_us as f32 / 1_000_000.0,
             };
         }
 
         if let Some(out_us) = self.out_time_us {
-            let racing_us = out_us - start_us;
+            let racing_us = if out_us > start_us {
+                out_us - start_us
+            } else {
+                0
+            };
             return BotFinalStatus::OutAt {
                 time_secs: racing_us as f32 / 1_000_000.0,
             };
