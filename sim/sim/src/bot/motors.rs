@@ -18,22 +18,13 @@ impl Wheel {
 
 #[derive(Component)]
 pub struct Motors {
-    left_axle: Vec3,
-    right_axle: Vec3,
     gear_ratio_num: u32,
     gear_ratio_den: u32,
 }
 
 impl Motors {
-    pub fn new(
-        left_axle: Vec3,
-        right_axle: Vec3,
-        gear_ratio_num: u32,
-        gear_ratio_den: u32,
-    ) -> Self {
+    pub fn new(gear_ratio_num: u32, gear_ratio_den: u32) -> Self {
         Self {
-            left_axle,
-            right_axle,
             gear_ratio_num,
             gear_ratio_den,
         }
@@ -55,9 +46,9 @@ fn pwm_to_torque(
     // - no-load speed: ~750 RPM -> 750/60*2*pi = ~78.54 rad/s
     // - stall torque: small toy motor ~0.15..0.25 N·m; choose conservative 0.18
     // These are rough; tune to your robot size.
-    const NO_LOAD_RPM: f32 = 2000.0;
+    const NO_LOAD_RPM: f32 = 40000.0;
     const NO_LOAD_OMEGA: f32 = NO_LOAD_RPM / 60.0 * std::f32::consts::TAU; // rad/s
-    const STALL_TORQUE: f32 = 0.02; // N·m at PWM = 1.0 and zero speed
+    const STALL_TORQUE: f32 = 0.001; // N·m at PWM = 1.0 and zero speed
 
     // Saturate PWM
     let pwm = (pwm.clamp(PWM_MIN, PWM_MAX) as f32) / (PWM_MAX as f32);
@@ -70,7 +61,7 @@ fn pwm_to_torque(
     };
 
     // Motor angular velocity = wheel angular velocity * gear_ratio
-    let motor_omega = ang_vel * gear_ratio.abs();
+    let motor_omega = ang_vel / gear_ratio.abs();
 
     // Motor torque magnitude scales with |pwm|
     let drive = pwm.abs();
@@ -93,7 +84,7 @@ fn pwm_to_torque(
     let motor_torque = STALL_TORQUE * drive * torque_ratio;
 
     // Wheel torque = motor torque * gear_ratio (torque amplified by gearbox)
-    let wheel_torque = motor_torque * gear_ratio.abs();
+    let wheel_torque = motor_torque / gear_ratio.abs();
 
     if pwm >= 0.0 {
         wheel_torque
@@ -106,7 +97,7 @@ fn apply_motors_pwm(
     pwm: Res<MotorDriversDutyCycles>,
     data: Res<ExecutionData>,
     mut wheels_query: Query<(&Wheel, &Transform, &Velocity, &mut ExternalForce), Without<Motors>>,
-    mut motors_query: Query<(&Motors, &Transform, &mut ExternalForce), Without<Wheel>>,
+    mut motors_query: Query<(&Motors, &mut ExternalForce), Without<Wheel>>,
 ) {
     if !data.activity_data.is_active_now() {
         return;
@@ -114,26 +105,7 @@ fn apply_motors_pwm(
 
     let mut body_torque = Vec3::ZERO;
 
-    struct MotorsAxle {
-        left: Vec3,
-        right: Vec3,
-    }
-    impl MotorsAxle {
-        fn new(left: Vec3, right: Vec3) -> Self {
-            Self { left, right }
-        }
-        fn axle(&self, side: Side) -> Vec3 {
-            match side {
-                Side::Left => self.left,
-                Side::Right => self.right,
-            }
-        }
-    }
-    let (motors, motors_transform, mut motors_ext_force) = motors_query.single_mut().unwrap();
-    let motors_axle = MotorsAxle::new(
-        motors_transform.rotation * motors.left_axle,
-        motors_transform.rotation * motors.right_axle,
-    );
+    let (motors, mut motors_ext_force) = motors_query.single_mut().unwrap();
 
     for (wheel, transform, velocity, mut ext_impulse) in &mut wheels_query {
         let ang_vel = -velocity.angvel.dot(transform.rotation * wheel.axle.abs()); // rad/s
@@ -146,18 +118,19 @@ fn apply_motors_pwm(
         );
 
         let wheel_axle = transform.rotation * wheel.axle.abs();
-        ext_impulse.torque = -wheel_axle * torque;
+        let torque_vec = -wheel_axle * torque;
+        ext_impulse.torque = torque_vec;
+        body_torque -= torque_vec;
 
-        body_torque += motors_axle.axle(wheel.side).abs() * torque;
-
-        // println!(
-        //     "Wheel {:?} torque {:.10} vel {:.2}",
-        //     wheel.side, torque, ang_vel
-        // );
+        println!(
+            "Wheel {:?} torque {:.10} vel {:.2}",
+            wheel.side, torque, ang_vel
+        );
     }
 
     // #FIXME: only works along positive Y axis, not negative...
     motors_ext_force.torque = body_torque;
+    println!("Body {:.10}", body_torque);
 }
 
 pub struct MotorsModelPlugin;

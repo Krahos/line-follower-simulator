@@ -14,7 +14,7 @@ const BOT_BUMPER_DIAMETER: f32 = BOT_BODY_HEIGHT / 2.0;
 const BOT_BODY_TO_WHEEL: f32 = 0.003;
 
 const BOT_BODY_WEIGHT: f32 = 0.1;
-const BOT_WHEEL_WEIGHT: f32 = 0.02;
+const BOT_WHEEL_QUAD_DENSITY: f32 = 20.0;
 
 pub fn setup_bot_model(
     mut commands: Commands,
@@ -104,7 +104,7 @@ pub fn setup_bot_model(
         CollisionGroups::new(BOT_COLLISION_GROUP, !BOT_COLLISION_GROUP),
         Transform::from_xyz(body_world.x, body_world.y, body_world.z),
         GlobalTransform::default(),
-        Motors::new(Vec3::X, Vec3::NEG_X, gear_ratio_num, gear_ratio_den),
+        Motors::new(gear_ratio_num, gear_ratio_den),
         BotPositionDetector::default(),
         ExternalForce::default(),
         Velocity::zero(),
@@ -120,14 +120,14 @@ pub fn setup_bot_model(
             Transform::from_xyz(wheel_world.x, wheel_world.y, wheel_world.z),
             RigidBody::Dynamic,
             Friction {
-                coefficient: 0.95,
+                coefficient: 0.8,
                 combine_rule: CoefficientCombineRule::Max,
             },
-            ColliderMassProperties::Mass(BOT_WHEEL_WEIGHT),
+            ColliderMassProperties::Mass(BOT_WHEEL_QUAD_DENSITY * wheel_diameter * wheel_diameter),
             CollisionGroups::new(BOT_COLLISION_GROUP, !BOT_COLLISION_GROUP),
             Velocity::zero(),
             ExternalForce::default(),
-            MultibodyJoint::new(
+            ImpulseJoint::new(
                 body,
                 TypedJoint::RevoluteJoint(
                     RevoluteJointBuilder::new(Vec3::X)

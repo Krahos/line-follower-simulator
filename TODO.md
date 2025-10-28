@@ -13,7 +13,7 @@
 [✔] fix camera panning
 [✔] camera keyboard controls
 [✔] VCR keyboard controls
-[❌] tune physics (torque, friction, masses...)
+[✔] tune physics (torque, friction, masses...)
 [✔] implement error dialog
 [❌] implement help dialog
 [✔] implement bot end and out conditions
