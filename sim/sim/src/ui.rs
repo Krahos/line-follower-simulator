@@ -6,7 +6,6 @@ use bevy_egui::{
     egui::{self, Color32, Id, Modal, Response, Stroke, Ui},
 };
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
-use bevy_rapier3d::render::RapierDebugRenderPlugin;
 use egui_file_dialog::FileDialog;
 use egui_material_icons::icons::{
     ICON_ADD, ICON_CANCEL, ICON_CENTER_FOCUS_WEAK, ICON_CHECK, ICON_DELETE, ICON_EAST,
@@ -1015,8 +1014,8 @@ impl Plugin for CameraSetupPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((
             PanOrbitCameraPlugin,
-            // #FIXME: debug only
-            RapierDebugRenderPlugin::default(),
+            // debug only:
+            // RapierDebugRenderPlugin::default(),
         ))
         .add_systems(Startup, setup_camera)
         // Background color
