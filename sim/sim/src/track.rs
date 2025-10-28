@@ -6,7 +6,7 @@ use bevy_rapier3d::prelude::*;
 
 use crate::utils::{EntityFeatures, Side, rotate_vec2};
 
-const FLOOR_HEIGHT: f32 = 0.01;
+const FLOOR_HEIGHT: f32 = 0.05;
 pub const TRACK_HALF_WIDTH: f32 = 0.1;
 pub const LINE_HALF_WIDTH: f32 = 0.01;
 const TRACK_HALF_HEIGHT: f32 = 0.001;
@@ -622,7 +622,7 @@ pub fn setup_track(
 
     let track_path_root = commands
         .spawn((
-            Transform::from_xyz(bottom_x, bottom_y, -0.005).with_rotation(bottom_rot),
+            Transform::from_xyz(bottom_x, bottom_y, -FLOOR_HEIGHT).with_rotation(bottom_rot),
             ChildOf(track_root),
         ))
         .id();
