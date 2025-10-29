@@ -9,7 +9,7 @@ use crate::{
 fn build_line_track() -> Track {
     Track::new(
         v2(2.0, 6.0),
-        origin(0.0, -1.75, 0.0),
+        origin(0.0, -1.75, 2.0),
         vec![start(), straight(3.0), end()],
     )
 }
