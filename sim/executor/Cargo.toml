@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 execution-data = { path = "../execution-data" }
 wasmtime = { workspace = true }
+bevy = { workspace = true }
