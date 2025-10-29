@@ -16,7 +16,7 @@ use egui_material_icons::icons::{ICON_EXIT_TO_APP, ICON_HELP, ICON_ZOOM_IN, ICON
 use execution_data::{MotorDriversDutyCycles, PWM_MAX, SensorsData};
 
 use crate::ui::{
-    camera_buttons, error_dialog, help_dialog, icon_button, keyboard_camera_control, rl,
+    camera_buttons, error_dialog, help_dialog, icon_button, keyboard_camera_control, rl, rlc,
 };
 
 pub fn test_gui_setup(app: &mut App) {
@@ -37,8 +37,8 @@ impl Default for TestGuiState {
     fn default() -> Self {
         Self {
             base_text_size: 8.0,
-            pwm_fwd_cmd: PWM_MAX / 2,
-            pwm_side_cmd: PWM_MAX / 2,
+            pwm_fwd_cmd: PWM_MAX / 4,
+            pwm_side_cmd: PWM_MAX / 5,
             error_message: None,
             help_open: false,
         }
@@ -73,9 +73,16 @@ fn test_gui_update(
                 }
                 ui.separator();
 
+                let sensors_color = if sensors.is_over_track_end {
+                    egui::Color32::WHITE
+                } else if sensors.is_out_of_track {
+                    egui::Color32::RED
+                } else {
+                    egui::Color32::GREEN
+                };
                 for sensor_index in 0..16 {
                     let value = (sensors.line_sensors[sensor_index] * 255.0 / 100.0) as u8;
-                    rl(ui, &format!("{:3}", value), size * 0.5);
+                    rlc(ui, &format!("{:3}", value), size * 0.5, sensors_color);
                     ui.add_space(size / 2.0);
                 }
 

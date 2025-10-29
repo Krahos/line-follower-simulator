@@ -182,6 +182,10 @@ pub fn rl(ui: &mut Ui, text: impl Into<String>, size: f32) -> Response {
     ui.label(egui::RichText::new(text).size(size))
 }
 
+pub fn rlc(ui: &mut Ui, text: impl Into<String>, size: f32, color: Color32) -> Response {
+    ui.label(egui::RichText::new(text).size(size).color(color))
+}
+
 pub fn icon_button(ui: &mut Ui, icon: &str, size: f32) -> Response {
     ui.label(egui::RichText::new(icon).size(size))
 }
