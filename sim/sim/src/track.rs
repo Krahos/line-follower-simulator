@@ -590,7 +590,7 @@ impl Track {
         meshes: &mut Assets<Mesh>,
         materials: &mut Assets<StandardMaterial>,
     ) {
-        let mut segment_origin = self.origin;
+        let mut segment_origin = self.origin.translate_in_direction(Vec2::new(0.0, -0.02));
 
         for segment in &self.segments {
             segment.spawn(
@@ -618,7 +618,8 @@ pub fn setup_track(
 ) {
     let bottom_x = -track.origin.position.x;
     let bottom_y = -track.origin.position.y;
-    let bottom_rot = Quat::from_rotation_z(track.origin.direction.to_radians());
+    //let bottom_rot = Quat::from_rotation_z(track.origin.direction.to_radians());
+    let bottom_rot = Quat::default();
 
     let track_path_root = commands
         .spawn((
