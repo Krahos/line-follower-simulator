@@ -66,9 +66,7 @@ pub fn runner_gui_setup(app: &mut App, visualizer_data: VisualizerData) {
                 })
                 .expect("failed to start server");
         }
-        VisualizerData::Runner { .. } => {
-            // TODO: spawn bot visualizer entity
-        }
+        VisualizerData::Runner { .. } => {}
     }
     app.add_systems(EguiPrimaryContextPass, runner_gui_update)
         .insert_resource(gui_state);
@@ -89,7 +87,7 @@ pub struct RunnerGuiState {
     logs: bool,
     period: u32,
     start_time: u32,
-    bot_with_pending_remove: Option<BotName>,
+    bot_with_pending_remove: Option<(Entity, BotName)>,
     error_message: Option<String>,
     help_open: bool,
 }
@@ -177,7 +175,7 @@ fn runner_gui_update(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut exit: EventWriter<AppExit>,
     mut camera: Query<(&mut PanOrbitCamera, &Transform)>,
-    mut bot_vis: Query<&mut BotVisualization>,
+    mut bot_vis: Query<(Entity, &mut BotVisualization)>,
     track: Res<Track>,
     time: Res<Time>,
     bot_assets: Res<BotAssets>,
@@ -356,13 +354,13 @@ fn runner_gui_update(
                 ui.separator();
 
                 let mut bots = bot_vis.iter_mut().collect::<Vec<_>>();
-                bots.sort_by_key(|bot| bot.bot_final_status);
-                for (index, bot) in bots.iter_mut().enumerate() {
+                bots.sort_by_key(|(bot_id, bot)| bot.bot_final_status);
+                for (index, (_, bot)) in bots.iter_mut().enumerate() {
                     bot.bot_number = index;
                 }
                 bots.reverse();
 
-                for bot in bots.iter() {
+                for (bot_id, bot) in bots.iter() {
                     ui.horizontal(|ui| {
                         if bot_status(
                             ui,
@@ -380,17 +378,29 @@ fn runner_gui_update(
                             bot.bot_activity.status_at_time(gui_state.play_time_sec),
                             gui_state.base_text_size,
                         ) {
-                            gui_state.as_mut().bot_with_pending_remove = Some(BotName {
-                                name: "Test BOT".to_string(),
-                                c1: Color32::RED,
-                                c2: Color32::BLUE,
-                            })
+                            gui_state.as_mut().bot_with_pending_remove = Some((
+                                *bot_id,
+                                BotName {
+                                    name: bot.config.name.clone(),
+                                    c1: Color32::from_rgb(
+                                        bot.config.color_main.r,
+                                        bot.config.color_main.g,
+                                        bot.config.color_main.b,
+                                    ),
+                                    c2: Color32::from_rgb(
+                                        bot.config.color_secondary.r,
+                                        bot.config.color_secondary.g,
+                                        bot.config.color_secondary.b,
+                                    ),
+                                },
+                            ))
                         }
                     });
                 }
             });
 
-            if ask_bot_remove(ui, gui_state.as_mut()) == Some(true) {
+            if let Some(bot_id) = ask_bot_remove(ui, gui_state.as_mut()) {
+                commands.entity(bot_id).despawn();
                 gui_state.as_mut().bot_with_pending_remove = None;
             }
         });
@@ -405,9 +415,9 @@ fn runner_gui_update(
     Ok(())
 }
 
-fn ask_bot_remove(ui: &mut Ui, gui_state: &mut RunnerGuiState) -> Option<bool> {
-    let mut response = Some(false);
-    if let Some(bot_with_pending_remove) = &gui_state.bot_with_pending_remove {
+fn ask_bot_remove(ui: &mut Ui, gui_state: &mut RunnerGuiState) -> Option<Entity> {
+    let mut response = None;
+    if let Some((bot_id, bot_with_pending_remove)) = &gui_state.bot_with_pending_remove {
         let modal = Modal::new(Id::new("Modal Remove")).show(ui.ctx(), |ui| {
             ui.vertical_centered(|ui| {
                 rl(ui, "Remove robot?", gui_state.base_text_size * 2.0);
@@ -442,10 +452,10 @@ fn ask_bot_remove(ui: &mut Ui, gui_state: &mut RunnerGuiState) -> Option<bool> {
                     },
                 );
                 if yes {
-                    response = Some(true);
+                    response = Some(*bot_id);
                 }
                 if no {
-                    response = Some(false);
+                    response = None;
                 }
             })
         });
