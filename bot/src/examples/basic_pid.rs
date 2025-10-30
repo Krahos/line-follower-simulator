@@ -10,6 +10,10 @@ const KP: f32 = 0.5;
 const KD: f32 = 0.0;
 const KI: f32 = 0.0;
 
+fn calibrated_line_value(raw: u8) -> f32 {
+    (255 - raw) as f32
+}
+
 #[derive(Default)]
 struct Pid {
     sensor_spacing_mm: f32,
@@ -42,14 +46,15 @@ impl Pid {
     fn compute_pwm(&mut self, vals: [u8; 16]) -> (i16, i16) {
         let err_mm_num: f32 = vals
             .into_iter()
+            .map(calibrated_line_value)
             .enumerate()
             .map(|(i, v)| {
                 let x = (i as f32 - 7.5) * self.sensor_spacing_mm;
-                x * v as f32
+                x * v
             })
             .sum();
         let err_mm_den: f32 = vals.into_iter().map(|v| v as f32).sum();
-        self.err_mm = -err_mm_num / err_mm_den;
+        self.err_mm = err_mm_num / err_mm_den;
 
         self.err_derivative = if self.dt_us <= 0.0 {
             0.0
