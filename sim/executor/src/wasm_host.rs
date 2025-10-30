@@ -1058,6 +1058,13 @@ impl CsvColumnKind {
             value.to_string()
         }
     }
+
+    pub fn ignore(&self) -> bool {
+        match self {
+            CsvColumnKind::IgnoreU8 | CsvColumnKind::IgnoreU16 => true,
+            _ => false,
+        }
+    }
 }
 
 struct CsvColumnHandler {
@@ -1111,12 +1118,14 @@ impl CvsLineHandler {
         let mut line = String::new();
         let mut needs_separator = false;
         for column in &self.columns {
-            if needs_separator {
-                line.push_str(&",");
-            } else {
-                needs_separator = true;
+            if !column.kind.ignore() {
+                if needs_separator {
+                    line.push_str(&",");
+                } else {
+                    needs_separator = true;
+                }
+                line.push_str(&column.name);
             }
-            line.push_str(&column.name);
         }
         line.push_str(&"\n");
         line
@@ -1126,12 +1135,14 @@ impl CvsLineHandler {
         let mut line = String::new();
         let mut needs_separator = false;
         for column in &self.columns {
-            if needs_separator {
-                line.push_str(&",");
-            } else {
-                needs_separator = true;
+            if !column.kind.ignore() {
+                if needs_separator {
+                    line.push_str(&",");
+                } else {
+                    needs_separator = true;
+                }
+                line.push_str(&column.kind.get_value_text(buf, column.start));
             }
-            line.push_str(&column.kind.get_value_text(buf, column.start));
         }
         line.push_str(&"\n");
         line
