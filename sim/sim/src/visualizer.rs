@@ -24,7 +24,6 @@ use crate::{
 #[derive(Component)]
 pub struct BotVisualization {
     pub config: Configuration,
-    pub bot_number: usize,
     pub bot_activity: ActivityData,
     pub bot_final_status: BotFinalStatus,
 }
@@ -32,8 +31,8 @@ pub struct BotVisualization {
 const VIS_LAYER_Z_STEP: f32 = 0.7;
 
 impl BotVisualization {
-    pub fn build_transform(&self) -> Transform {
-        Transform::from_xyz(0.0, 0.0, self.bot_number as f32 * VIS_LAYER_Z_STEP)
+    pub fn build_transform(&self, layer: usize) -> Transform {
+        Transform::from_xyz(0.0, 0.0, layer as f32 * VIS_LAYER_Z_STEP)
     }
 }
 
@@ -42,18 +41,16 @@ pub fn spawn_bot_visualization(
     track: &Track,
     data: ExecutionData,
     configuration: Configuration,
-    bot_number: usize,
     bot_assets: &BotAssets,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
 ) {
     let root_component = BotVisualization {
         config: configuration.clone(),
-        bot_number,
         bot_activity: data.activity_data,
         bot_final_status: data.activity_data.final_status(),
     };
-    let root_transform = root_component.build_transform();
+    let root_transform = root_component.build_transform(0);
     let track_root = commands.spawn((root_component, root_transform)).id();
 
     setup_track(
@@ -94,9 +91,13 @@ pub fn spawn_bot_visualization(
     );
 }
 
-pub fn sync_bot_layers(layers: Query<(&BotVisualization, &mut Transform)>) {
-    for (vis, mut transform) in layers {
-        *transform = vis.build_transform();
+pub fn sync_bot_layers(mut layers: Query<(&mut BotVisualization, &mut Transform)>) {
+    let mut bots: Vec<_> = layers.iter_mut().collect();
+    bots.sort_by_key(|(bot, _)| bot.bot_final_status);
+    bots.reverse();
+
+    for (layer, (vis, transform)) in bots.iter_mut().enumerate() {
+        *(*transform).as_mut() = vis.as_ref().build_transform(layer);
     }
 }
 

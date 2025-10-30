@@ -79,6 +79,13 @@ impl VisualizerData {
             VisualizerData::Runner { bot, .. } => Some(bot.clone()),
         }
     }
+
+    pub fn auto_run(&self) -> bool {
+        match self {
+            VisualizerData::Server { .. } => true,
+            VisualizerData::Runner { .. } => false,
+        }
+    }
 }
 
 pub enum AppType {

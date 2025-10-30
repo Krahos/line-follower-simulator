@@ -1,4 +1,4 @@
-use std::sync::Mutex;
+use std::{collections::BTreeMap, sync::Mutex};
 
 use bevy::{
     app::{App, AppExit},
@@ -48,6 +48,7 @@ pub fn runner_gui_setup(app: &mut App, visualizer_data: VisualizerData) {
         visualizer_data.period(),
         visualizer_data.start_time(),
         visualizer_data.first_bot(),
+        visualizer_data.auto_run(),
     );
 
     match visualizer_data {
@@ -69,8 +70,8 @@ pub fn runner_gui_setup(app: &mut App, visualizer_data: VisualizerData) {
         VisualizerData::Runner { .. } => {}
     }
     app.add_systems(EguiPrimaryContextPass, runner_gui_update)
-        .insert_resource(gui_state);
-    app.add_systems(Update, (sync_bot_layers, sync_bot_body, sync_bot_wheel));
+        .insert_resource(gui_state)
+        .add_systems(Update, (sync_bot_layers, sync_bot_body, sync_bot_wheel));
 }
 
 #[derive(Resource)]
@@ -82,7 +83,6 @@ pub struct RunnerGuiState {
     play_time_sec: f32,
     play_active: bool,
     play_max_sec: f32,
-    bot_count: usize,
     output: Option<String>,
     logs: bool,
     period: u32,
@@ -90,6 +90,7 @@ pub struct RunnerGuiState {
     bot_with_pending_remove: Option<BotName>,
     error_message: Option<String>,
     help_open: bool,
+    auto_run: bool,
 }
 
 impl RunnerGuiState {
@@ -99,6 +100,7 @@ impl RunnerGuiState {
         period: u32,
         start_time: u32,
         first_bot: Option<BotExecutionData>,
+        auto_run: bool,
     ) -> Self {
         let (sender, receiver) = std::sync::mpsc::channel();
         if let Some(bot) = first_bot {
@@ -113,7 +115,6 @@ impl RunnerGuiState {
             play_time_sec: 0.0,
             play_active: false,
             play_max_sec: 60.0,
-            bot_count: 0,
             output,
             logs,
             period,
@@ -121,6 +122,7 @@ impl RunnerGuiState {
             bot_with_pending_remove: None,
             error_message: None,
             help_open: false,
+            auto_run,
         }
     }
 
@@ -136,34 +138,44 @@ impl RunnerGuiState {
         &mut self,
         commands: &mut Commands,
         track: &Track,
+        bot_vis: &Query<(Entity, &mut BotVisualization)>,
         bot_assets: &BotAssets,
         meshes: &mut Assets<Mesh>,
         materials: &mut Assets<StandardMaterial>,
     ) {
-        while let Ok(bot) = self.new_bot_receiver.lock().unwrap().try_recv() {
-            match bot {
-                Ok(bot) => {
-                    self.bot_count += 1;
-                    println!(
-                        "new bot (number {}, steps {})",
-                        self.bot_count,
-                        bot.data.body_data.steps.len()
-                    );
-                    spawn_bot_visualization(
-                        commands,
-                        track,
-                        bot.data,
-                        bot.config,
-                        self.bot_count,
-                        bot_assets,
-                        meshes,
-                        materials,
-                    );
-                }
-                Err(err) => {
-                    self.error_message = Some(err.to_string());
-                }
+        let mut new_bots = Vec::new();
+        let mut errors = Vec::new();
+
+        while let Ok(result) = self.new_bot_receiver.lock().unwrap().try_recv() {
+            match result {
+                Ok(bot) => new_bots.push(bot),
+                Err(err) => errors.push(err.to_string()),
             }
+        }
+
+        if errors.len() > 0 {
+            self.error_message = Some(errors.join("\n"));
+        }
+
+        let current_bots_by_name = if self.auto_run {
+            let mut bots_by_name = BTreeMap::new();
+            for (entity, bot) in bot_vis.iter() {
+                bots_by_name.insert(bot.config.name.clone(), entity);
+            }
+            bots_by_name
+        } else {
+            BTreeMap::new()
+        };
+
+        for bot in new_bots {
+            if let Some(bot_id) = current_bots_by_name.get(&bot.config.name) {
+                commands.entity(*bot_id).despawn();
+            }
+
+            println!("new bot (steps {})", bot.data.body_data.steps.len());
+            spawn_bot_visualization(
+                commands, track, bot.data, bot.config, bot_assets, meshes, materials,
+            );
         }
     }
 }
@@ -189,6 +201,29 @@ fn runner_gui_update(
         gui_state.play_time_sec += time.delta_secs();
     }
     gui_state.play_time_sec = gui_state.play_time_sec.min(gui_state.play_max_sec).max(0.0);
+
+    if gui_state.auto_run {
+        if gui_state.play_time_sec == gui_state.play_max_sec {
+            gui_state.play_time_sec = 0.0;
+            gui_state.handle_new_bots(
+                &mut commands,
+                &track,
+                &bot_vis,
+                &bot_assets,
+                &mut meshes,
+                &mut materials,
+            );
+        }
+    } else {
+        gui_state.handle_new_bots(
+            &mut commands,
+            &track,
+            &bot_vis,
+            &bot_assets,
+            &mut meshes,
+            &mut materials,
+        );
+    }
 
     egui::TopBottomPanel::bottom("bottom_panel")
         .resizable(false)
@@ -320,14 +355,6 @@ fn runner_gui_update(
                         process_new_bot(path, output, logs, track, period, start_time, sender);
                     });
                 }
-
-                gui_state.handle_new_bots(
-                    &mut commands,
-                    &track,
-                    &bot_assets,
-                    &mut meshes,
-                    &mut materials,
-                );
             });
 
             let base_text_size = gui_state.base_text_size;
@@ -355,9 +382,6 @@ fn runner_gui_update(
 
                 let mut bots = bot_vis.iter_mut().collect::<Vec<_>>();
                 bots.sort_by_key(|(_bot_id, bot)| bot.bot_final_status);
-                for (index, (_, bot)) in bots.iter_mut().enumerate() {
-                    bot.bot_number = index;
-                }
                 bots.reverse();
 
                 for (bot_id, bot) in bots.iter() {
