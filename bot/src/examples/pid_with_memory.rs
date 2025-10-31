@@ -1,6 +1,4 @@
-use crate::blocking_api::{
-    console_log, get_line_sensors, get_time_us, remote_enabled, set_motors_pwm, wait_remote_enabled,
-};
+use crate::blocking_api::*;
 
 const LINE_THRESHOLD: f32 = 150.0;
 
