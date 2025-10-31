@@ -9,19 +9,30 @@ pub fn start_server(
     address: String,
     port: u16,
     track: Track,
+    total_simulation_time_us: u32,
     period: u32,
     start_time: u32,
     sender: std::sync::mpsc::Sender<wasmtime::Result<BotExecutionData>>,
 ) -> wasmtime::Result<()> {
     let server = tiny_http::Server::http(format!("{}:{}", address, port))
         .map_err(|err| wasmtime::Error::msg(err.to_string()))?;
-    std::thread::spawn(move || run_server(server, track, period, start_time, sender));
+    std::thread::spawn(move || {
+        run_server(
+            server,
+            track,
+            total_simulation_time_us,
+            period,
+            start_time,
+            sender,
+        )
+    });
     Ok(())
 }
 
 fn run_server(
     server: tiny_http::Server,
     track: Track,
+    total_simulation_time_us: u32,
     period: u32,
     start_time: u32,
     sender: std::sync::mpsc::Sender<wasmtime::Result<BotExecutionData>>,
@@ -38,7 +49,13 @@ fn run_server(
                         std::thread::spawn(move || {
                             result_sender
                                 .send(run_bot_from_code(
-                                    wasm_bytes, None, false, period, start_time, track,
+                                    wasm_bytes,
+                                    None,
+                                    false,
+                                    total_simulation_time_us,
+                                    period,
+                                    start_time,
+                                    track,
                                 ))
                                 .ok();
                         });

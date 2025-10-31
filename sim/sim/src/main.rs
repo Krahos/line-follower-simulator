@@ -74,6 +74,9 @@ enum Command {
         /// Save robot logs
         #[clap(long, short)]
         logs: bool,
+        /// Simulation time limit in seconds
+        #[clap(long, alias = "tl", default_value = "60")]
+        time_limit: u32,
         /// Racing start time in us
         #[clap(long, short, default_value = "1000000")]
         start_time: u32,
@@ -95,6 +98,9 @@ enum Command {
         /// HTTP server port
         #[clap(long, short, default_value = "9999")]
         port: u16,
+        /// Simulation time limit in seconds
+        #[clap(long, alias = "tl", default_value = "60")]
+        time_limit: u32,
         /// Racing start time in us
         #[clap(long, short, default_value = "1000000")]
         start_time: u32,
@@ -113,6 +119,7 @@ fn main() -> executor::wasmtime::Result<()> {
             output,
             logs,
             start_time,
+            time_limit,
             cli,
         } => {
             println!(
@@ -124,6 +131,7 @@ fn main() -> executor::wasmtime::Result<()> {
                 input,
                 Some(output.clone()),
                 logs,
+                time_limit * 1_000_000,
                 period,
                 start_time,
                 track.clone(),
@@ -139,6 +147,7 @@ fn main() -> executor::wasmtime::Result<()> {
                         bot: bot_execution_data,
                         output,
                         logs,
+                        total_simulation_time_us: time_limit * 1_000_000,
                         period,
                         start_time,
                     }),
@@ -184,6 +193,7 @@ fn main() -> executor::wasmtime::Result<()> {
         Command::Serve {
             address,
             port,
+            time_limit,
             start_time,
         } => {
             println!("Starting server...");
@@ -191,6 +201,7 @@ fn main() -> executor::wasmtime::Result<()> {
                 app_builder::AppType::Visualizer(VisualizerData::Server {
                     address,
                     port,
+                    total_simulation_time_us: time_limit * 1_000_000,
                     period,
                     start_time,
                 }),

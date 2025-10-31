@@ -32,6 +32,7 @@ pub enum VisualizerData {
     Server {
         address: String,
         port: u16,
+        total_simulation_time_us: u32,
         period: u32,
         start_time: u32,
     },
@@ -39,6 +40,7 @@ pub enum VisualizerData {
         bot: BotExecutionData,
         output: String,
         logs: bool,
+        total_simulation_time_us: u32,
         period: u32,
         start_time: u32,
     },
@@ -56,6 +58,19 @@ impl VisualizerData {
         match self {
             VisualizerData::Server { .. } => false,
             VisualizerData::Runner { logs, .. } => *logs,
+        }
+    }
+
+    pub fn total_simulation_time_us(&self) -> u32 {
+        match self {
+            VisualizerData::Server {
+                total_simulation_time_us,
+                ..
+            } => *total_simulation_time_us,
+            VisualizerData::Runner {
+                total_simulation_time_us,
+                ..
+            } => *total_simulation_time_us,
         }
     }
 

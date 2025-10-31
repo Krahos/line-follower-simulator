@@ -204,6 +204,7 @@ pub fn run_bot_from_file(
     input: String,
     output: Option<String>,
     logs: bool,
+    total_simulation_time_us: u32,
     step_period_us: u32,
     start_time_us: u32,
     track: Track,
@@ -214,6 +215,7 @@ pub fn run_bot_from_file(
         wasm_bytes,
         output,
         logs,
+        total_simulation_time_us,
         step_period_us,
         start_time_us,
         track,
@@ -224,6 +226,7 @@ pub fn run_bot_from_code(
     wasm_bytes: Vec<u8>,
     output: Option<String>,
     logs: bool,
+    total_simulation_time_us: u32,
     step_period_us: u32,
     start_time_us: u32,
     track: Track,
@@ -247,7 +250,7 @@ pub fn run_bot_from_code(
         let sim_result = wasm_executor::run_robot_simulation(
             &wasm_bytes,
             stepper,
-            executor::TOTAL_SIMULATION_TIME_US,
+            total_simulation_time_us,
             output.map(|output| output.into()),
             logs,
         );

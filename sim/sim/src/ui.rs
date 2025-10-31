@@ -284,6 +284,7 @@ pub fn process_new_bot(
     output: Option<String>,
     logs: bool,
     track: Track,
+    total_simulation_time_us: u32,
     period: u32,
     start_time: u32,
     sender: std::sync::mpsc::Sender<wasmtime::Result<BotExecutionData>>,
@@ -292,7 +293,13 @@ pub fn process_new_bot(
     std::thread::spawn(move || {
         sender
             .send(run_bot_from_file(
-                input, output, logs, period, start_time, track,
+                input,
+                output,
+                logs,
+                total_simulation_time_us,
+                period,
+                start_time,
+                track,
             ))
             .ok();
     });

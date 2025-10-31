@@ -45,6 +45,7 @@ pub fn runner_gui_setup(app: &mut App, visualizer_data: VisualizerData) {
     let gui_state = RunnerGuiState::new(
         visualizer_data.output(),
         visualizer_data.logs(),
+        visualizer_data.total_simulation_time_us(),
         visualizer_data.period(),
         visualizer_data.start_time(),
         visualizer_data.first_bot(),
@@ -55,17 +56,26 @@ pub fn runner_gui_setup(app: &mut App, visualizer_data: VisualizerData) {
         VisualizerData::Server {
             address,
             port,
+            total_simulation_time_us,
             period,
             start_time,
         } => {
             let sender = gui_state.get_bot_sender().clone();
             let track = app.world().resource::<Track>().clone();
-            start_server(address, port, track, period, start_time, sender)
-                .map_err(|err| {
-                    eprintln!("error starting HTTP server: {}", err.to_string());
-                    err
-                })
-                .expect("failed to start server");
+            start_server(
+                address,
+                port,
+                track,
+                total_simulation_time_us,
+                period,
+                start_time,
+                sender,
+            )
+            .map_err(|err| {
+                eprintln!("error starting HTTP server: {}", err.to_string());
+                err
+            })
+            .expect("failed to start server");
         }
         VisualizerData::Runner { .. } => {}
     }
@@ -85,6 +95,7 @@ pub struct RunnerGuiState {
     play_max_sec: f32,
     output: Option<String>,
     logs: bool,
+    total_simulation_time_us: u32,
     period: u32,
     start_time: u32,
     bot_with_pending_remove: Option<BotName>,
@@ -97,6 +108,7 @@ impl RunnerGuiState {
     pub fn new(
         output: Option<String>,
         logs: bool,
+        total_simulation_time_us: u32,
         period: u32,
         start_time: u32,
         first_bot: Option<BotExecutionData>,
@@ -117,6 +129,7 @@ impl RunnerGuiState {
             play_max_sec: 60.0,
             output,
             logs,
+            total_simulation_time_us,
             period,
             start_time,
             bot_with_pending_remove: None,
@@ -349,10 +362,20 @@ fn runner_gui_update(
                     let output = gui_state.output.clone();
                     let logs = gui_state.logs;
                     let period = gui_state.period;
+                    let total_simulation_time_us = gui_state.total_simulation_time_us;
                     let start_time = gui_state.start_time;
                     let track = track.clone();
                     std::thread::spawn(move || {
-                        process_new_bot(path, output, logs, track, period, start_time, sender);
+                        process_new_bot(
+                            path,
+                            output,
+                            logs,
+                            track,
+                            total_simulation_time_us,
+                            period,
+                            start_time,
+                            sender,
+                        );
                     });
                 }
             });
