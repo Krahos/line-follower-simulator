@@ -54,6 +54,14 @@ pub fn get_time_us() -> u32 {
     device_operation_immediate(DeviceOperation::GetTime).get_u32(0)
 }
 
+/// Get the current simulation steps count and the simulation step period in microseconds.
+pub fn get_steps_and_period_us() -> (u32, u32) {
+    let v = device_operation_immediate(DeviceOperation::GetPeriod);
+    let period = v.get_u32(0);
+    let steps = v.get_u32(1);
+    (steps, period)
+}
+
 /// Sleep for the given time in microseconds.
 pub fn sleep_for(time_us: u32) {
     device_operation_blocking(DeviceOperation::SleepFor(time_us));
@@ -100,7 +108,7 @@ pub fn set_motors_pwm(left: i16, right: i16) {
 }
 
 pub mod csv {
-    use crate::wasm_bindings::diagnostics::{CsvColumn, NamedValue, ValueKind};
+    pub use crate::wasm_bindings::diagnostics::{CsvColumn, NamedValue, ValueKind};
     pub const C_I8: ValueKind = ValueKind::Int8;
     pub const C_I16: ValueKind = ValueKind::Int16;
     pub const C_I32: ValueKind = ValueKind::Int32;
@@ -125,6 +133,16 @@ pub mod csv {
         CsvColumn {
             name: name.to_string(),
             kind,
+        }
+    }
+
+    pub fn transmute_buf<T>(src: &[T]) -> &[u8] {
+        unsafe {
+            let count = src.len();
+            let block_len = std::mem::size_of::<T>();
+            let slice_u8 = std::mem::transmute::<&[T], &[u8]>(src);
+            let slice_t = std::slice::from_raw_parts(slice_u8.as_ptr(), count * block_len);
+            slice_t
         }
     }
 }
