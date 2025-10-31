@@ -121,6 +121,7 @@ impl Pid {
         (self.pwm_left, self.pwm_right)
     }
 
+    #[allow(unused)]
     fn log_vars(&self) {
         console_log(&format!(
             "pwm [ {} {} ] STEER < {:.2} > OUT {} | ERR {:.2} DER {:.10} INT {:.0}",
