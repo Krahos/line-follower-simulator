@@ -389,7 +389,7 @@ impl Plugin for CameraSetupPlugin {
         app.add_plugins((
             PanOrbitCameraPlugin,
             // debug only:
-            // RapierDebugRenderPlugin::default(),
+            // bevy_rapier3d::render::RapierDebugRenderPlugin::default(),
         ))
         .add_systems(Startup, setup_camera)
         // Background color
