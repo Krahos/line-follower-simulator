@@ -7,17 +7,17 @@
 
 # basic line follower (toy with no PID)
 
-- toy
+- toy ✔️
 
 # basic line follower with PID
 
-- PID
+- PID ✔️
 
 # basic PID tuning for straight line
 
 # what if it goes out? (90deg turns)
 
-- PID with out memory
+- PID with out memory ✔️
 
 # tuning PID for smooth turns
 
@@ -25,16 +25,16 @@
 
 # telemetry
 
-- telemetry example
+- telemetry example ✔️
 
 # going async
 
-- base async bot
+- base async bot ✔️
 
 ## parallel sensor reading
 ## parallel logic tasks
 
-- parallel async bot
+- parallel async bot 🚧
 
 # beyond PID
 
