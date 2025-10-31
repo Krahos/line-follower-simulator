@@ -2447,6 +2447,7 @@ checksum = "26c9caff9c964af1e3d913acd85e86d2170e3169a43cf4ff84eea3106691c14d"
 dependencies = [
  "egui",
  "egui_commonmark_backend",
+ "egui_commonmark_macros",
  "egui_extras",
  "pulldown-cmark",
 ]
@@ -2460,6 +2461,21 @@ dependencies = [
  "egui",
  "egui_extras",
  "pulldown-cmark",
+]
+
+[[package]]
+name = "egui_commonmark_macros"
+version = "0.21.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "89d8b097288a2021b2c5a26f36c8badccb44817d960668137acd5661be49eafa"
+dependencies = [
+ "egui",
+ "egui_commonmark_backend",
+ "proc-macro-crate",
+ "proc-macro2",
+ "pulldown-cmark",
+ "quote",
+ "syn 2.0.107",
 ]
 
 [[package]]
