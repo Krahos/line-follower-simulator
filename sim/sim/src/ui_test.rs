@@ -15,9 +15,12 @@ use bevy_panorbit_camera::PanOrbitCamera;
 use egui_material_icons::icons::{ICON_EXIT_TO_APP, ICON_HELP, ICON_ZOOM_IN, ICON_ZOOM_OUT};
 use execution_data::{MotorDriversDutyCycles, PWM_MAX, SensorsData};
 
-use crate::ui::{
-    HelpState, camera_buttons, error_dialog, help_dialog, icon_button, keyboard_camera_control, rl,
-    rlc,
+use crate::{
+    track::Track,
+    ui::{
+        HelpState, camera_buttons, error_dialog, help_dialog, icon_button, keyboard_camera_control,
+        rl, rlc,
+    },
 };
 
 pub fn test_gui_setup(app: &mut App) {
@@ -53,6 +56,7 @@ fn test_gui_update(
     mut exit: EventWriter<AppExit>,
     mut pwm: ResMut<MotorDriversDutyCycles>,
     sensors: Res<SensorsData>,
+    track: Res<Track>,
     time: Res<Time>,
     mut camera: Query<(&mut PanOrbitCamera, &Transform)>,
 ) -> Result {
@@ -114,7 +118,7 @@ fn test_gui_update(
         .default_width(cb_size * 3.0)
         .show_separator_line(false)
         .show(ctx, |ui| {
-            camera_buttons(ui, gui_state.base_text_size, po_camera.as_mut());
+            camera_buttons(ui, gui_state.base_text_size, po_camera.as_mut(), &track);
         });
 
     egui::SidePanel::right("right_panel")

@@ -243,15 +243,20 @@ impl CameraQuadrant {
     }
 }
 
-fn reset_camera(po_camera: &mut PanOrbitCamera, quadrant: CameraQuadrant) {
-    po_camera.target_focus = Vec3::ZERO;
+fn reset_camera(po_camera: &mut PanOrbitCamera, quadrant: CameraQuadrant, track: &Track) {
+    po_camera.target_focus = -track.origin().extend(0.0);
     po_camera.target_yaw = quadrant.yaw();
     po_camera.target_pitch = quadrant.pitch();
     po_camera.target_radius = CAMERA_Z;
     po_camera.force_update;
 }
 
-pub fn camera_buttons(ui: &mut Ui, base_text_size: f32, po_camera: &mut PanOrbitCamera) {
+pub fn camera_buttons(
+    ui: &mut Ui,
+    base_text_size: f32,
+    po_camera: &mut PanOrbitCamera,
+    track: &Track,
+) {
     let cb_size = base_text_size * 3.0;
     ui.vertical_centered(|ui| {
         rl(ui, "Camera views", base_text_size);
@@ -259,19 +264,19 @@ pub fn camera_buttons(ui: &mut Ui, base_text_size: f32, po_camera: &mut PanOrbit
         egui::Grid::new("camera_controls").show(ui, |ui| {
             for q in [CameraQuadrant::NW, CameraQuadrant::N, CameraQuadrant::NE] {
                 if icon_button(ui, q.icon(), cb_size).clicked() {
-                    reset_camera(po_camera, q);
+                    reset_camera(po_camera, q, track);
                 }
             }
             ui.end_row();
             for q in [CameraQuadrant::W, CameraQuadrant::C, CameraQuadrant::E] {
                 if icon_button(ui, q.icon(), cb_size).clicked() {
-                    reset_camera(po_camera, q);
+                    reset_camera(po_camera, q, track);
                 }
             }
             ui.end_row();
             for q in [CameraQuadrant::SW, CameraQuadrant::S, CameraQuadrant::SE] {
                 if icon_button(ui, q.icon(), cb_size).clicked() {
-                    reset_camera(po_camera, q);
+                    reset_camera(po_camera, q, track);
                 }
             }
             ui.end_row();

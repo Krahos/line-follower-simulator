@@ -581,6 +581,10 @@ impl Track {
         }
     }
 
+    pub fn origin(&self) -> Vec2 {
+        self.origin.position
+    }
+
     pub fn spawn_bundles(
         &self,
         path_parent: Entity,
