@@ -548,7 +548,7 @@ impl BotstatusExt for BotStatus {
     fn color(&self) -> Color32 {
         match self {
             BotStatus::Waiting { .. } => Color32::YELLOW,
-            BotStatus::Racing { .. } => Color32::GREEN,
+            BotStatus::Racing { .. } => Color32::WHITE,
             BotStatus::EndedAt { .. } => Color32::GREEN,
             BotStatus::OutAt { .. } => Color32::RED,
         }
