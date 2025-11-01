@@ -13,6 +13,8 @@ const TRACK_HALF_HEIGHT: f32 = 0.001;
 const TRACK_TIPS_LENGTH: f32 = 0.5;
 const TRACK_CIRCLE_SEGMENTS_PER_PI: usize = 40;
 
+const TRACK_ORIGIN_OFFSET: Vec2 = Vec2::new(0.0, -0.25);
+
 /// Generates a curved "track turn" collider (an arc section)
 ///
 /// # Arguments
@@ -598,7 +600,7 @@ impl Track {
         meshes: &mut Assets<Mesh>,
         materials: &mut Assets<StandardMaterial>,
     ) {
-        let mut segment_origin = self.origin.translate_in_direction(Vec2::new(0.0, -0.02));
+        let mut segment_origin = self.origin.translate_in_direction(TRACK_ORIGIN_OFFSET);
 
         for segment in &self.segments {
             segment.spawn(
@@ -624,8 +626,8 @@ pub fn setup_track(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
 ) {
-    let bottom_x = -track.origin.position.x;
-    let bottom_y = -track.origin.position.y;
+    let bottom_x = -track.origin.position.x + TRACK_ORIGIN_OFFSET.x;
+    let bottom_y = -track.origin.position.y + TRACK_ORIGIN_OFFSET.y;
     //let bottom_rot = Quat::from_rotation_z(track.origin.direction.to_radians());
     let bottom_rot = Quat::default();
 
