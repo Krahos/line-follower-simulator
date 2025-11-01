@@ -241,7 +241,7 @@ impl CameraQuadrant {
     }
 }
 
-fn reset_camera(po_camera: &mut PanOrbitCamera, quadrant: CameraQuadrant, track: &Track) {
+fn reset_camera(po_camera: &mut PanOrbitCamera, quadrant: &CameraQuadrant, track: &Track) {
     po_camera.target_focus = track.camera_target();
     po_camera.target_yaw = quadrant.yaw();
     po_camera.target_pitch = quadrant.pitch();
@@ -249,10 +249,25 @@ fn reset_camera(po_camera: &mut PanOrbitCamera, quadrant: CameraQuadrant, track:
     po_camera.force_update;
 }
 
+fn key_triggers_quadrant(keys: &ButtonInput<KeyCode>, quadrant: &CameraQuadrant) -> bool {
+    match quadrant {
+        CameraQuadrant::NW => keys.pressed(KeyCode::Numpad7),
+        CameraQuadrant::N => keys.pressed(KeyCode::Numpad8),
+        CameraQuadrant::NE => keys.pressed(KeyCode::Numpad9),
+        CameraQuadrant::W => keys.pressed(KeyCode::Numpad4),
+        CameraQuadrant::C => keys.pressed(KeyCode::Numpad5),
+        CameraQuadrant::E => keys.pressed(KeyCode::Numpad6),
+        CameraQuadrant::SW => keys.pressed(KeyCode::Numpad1),
+        CameraQuadrant::S => keys.pressed(KeyCode::Numpad2),
+        CameraQuadrant::SE => keys.pressed(KeyCode::Numpad3),
+    }
+}
+
 pub fn camera_buttons(
     ui: &mut Ui,
     base_text_size: f32,
     po_camera: &mut PanOrbitCamera,
+    keys: &ButtonInput<KeyCode>,
     track: &Track,
 ) {
     let cb_size = base_text_size * 3.0;
@@ -260,20 +275,20 @@ pub fn camera_buttons(
         rl(ui, "Camera views", base_text_size);
         ui.separator();
         egui::Grid::new("camera_controls").show(ui, |ui| {
-            for q in [CameraQuadrant::NW, CameraQuadrant::N, CameraQuadrant::NE] {
-                if icon_button(ui, q.icon(), cb_size).clicked() {
+            for q in &[CameraQuadrant::NW, CameraQuadrant::N, CameraQuadrant::NE] {
+                if icon_button(ui, q.icon(), cb_size).clicked() || key_triggers_quadrant(keys, q) {
                     reset_camera(po_camera, q, track);
                 }
             }
             ui.end_row();
-            for q in [CameraQuadrant::W, CameraQuadrant::C, CameraQuadrant::E] {
-                if icon_button(ui, q.icon(), cb_size).clicked() {
+            for q in &[CameraQuadrant::W, CameraQuadrant::C, CameraQuadrant::E] {
+                if icon_button(ui, q.icon(), cb_size).clicked() || key_triggers_quadrant(keys, q) {
                     reset_camera(po_camera, q, track);
                 }
             }
             ui.end_row();
-            for q in [CameraQuadrant::SW, CameraQuadrant::S, CameraQuadrant::SE] {
-                if icon_button(ui, q.icon(), cb_size).clicked() {
+            for q in &[CameraQuadrant::SW, CameraQuadrant::S, CameraQuadrant::SE] {
+                if icon_button(ui, q.icon(), cb_size).clicked() || key_triggers_quadrant(keys, q) {
                     reset_camera(po_camera, q, track);
                 }
             }

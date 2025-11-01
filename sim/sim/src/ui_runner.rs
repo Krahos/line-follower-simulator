@@ -391,7 +391,13 @@ fn runner_gui_update(
         .default_width(cb_size * 3.0)
         .show_separator_line(false)
         .show(ctx, |ui| {
-            camera_buttons(ui, gui_state.base_text_size, po_camera.as_mut(), &track);
+            camera_buttons(
+                ui,
+                gui_state.base_text_size,
+                po_camera.as_mut(),
+                &keyboard_input,
+                &track,
+            );
         });
 
     egui::SidePanel::right("right_panel")
