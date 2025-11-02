@@ -7,7 +7,7 @@ edition = "2024"
 
 [dependencies]
 wit-bindgen = { version = "0.46.0", features = ["bitflags"] }
-futures-lite = "2.6.1"
+futures-micro = "0.5.0"
 pin-project-lite = "0.2.4"
 
 [lib]

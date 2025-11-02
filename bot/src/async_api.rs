@@ -1,4 +1,4 @@
-use futures_lite::future::zip;
+use futures_micro::zip;
 
 use crate::{
     wasm_bindings::devices::{DeviceOperation, device_operation_async, device_operation_immediate},
@@ -14,7 +14,7 @@ pub use crate::blocking_api::{
 pub async fn get_line_sensors() -> [u8; 16] {
     let lf = device_operation_async(DeviceOperation::ReadLineLeft).into_future();
     let rf = device_operation_async(DeviceOperation::ReadLineRight).into_future();
-    let (l, r) = zip(lf, rf).await;
+    let (l, r) = zip!(lf, rf).await;
     let mut result = [0; 16];
     (0..8)
         .into_iter()

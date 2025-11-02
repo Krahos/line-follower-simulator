@@ -1,4 +1,4 @@
-use futures_lite::future::or;
+use futures_micro::or;
 
 use crate::async_api::*;
 
@@ -141,7 +141,7 @@ impl Pid {
 }
 
 async fn termination_task() {
-    or(sleep_for(MAX_TIME), wait_remote_disabled()).await
+    or!(sleep_for(MAX_TIME), wait_remote_disabled()).await
 }
 
 pub async fn race_task(sensor_spacing_mm: f32) {
@@ -166,5 +166,5 @@ pub async fn run(sensor_spacing_mm: f32) {
     wait_remote_enabled().await;
     console_log("started");
 
-    or(termination_task(), race_task(sensor_spacing_mm)).await;
+    or!(termination_task(), race_task(sensor_spacing_mm)).await;
 }

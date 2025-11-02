@@ -1,4 +1,4 @@
-use futures_lite::future::{or, zip};
+use futures_micro::{or, zip};
 
 use crate::async_api::*;
 
@@ -141,7 +141,7 @@ impl Pid {
 }
 
 async fn termination_task<'a>(channel: &'a ValueWatcher<()>) {
-    or(sleep_for(MAX_TIME), wait_remote_disabled()).await;
+    or!(sleep_for(MAX_TIME), wait_remote_disabled()).await;
     channel.update(());
 }
 
@@ -178,8 +178,8 @@ pub async fn run(sensor_spacing_mm: f32) {
     wait_remote_enabled().await;
     console_log("started");
 
-    or(termination_task(&termination), async {
-        zip(
+    or!(termination_task(&termination), async {
+        zip!(
             line_sensor_task(&line_values),
             race_task(sensor_spacing_mm, &line_values),
         )
